@@ -1,13 +1,13 @@
 from configparser import SafeConfigParser
-
+import os
 class DBProperties:
     def __init__(self):
-        self.file_name = "config/config.conf"
-        self.cfgParser = SafeConfigParser()
-        self.load()
-    def load(self):
-        self.cfgParser.read(self.file_name)
+        self.file_name = os.path.abspath('../src/config/config.ini')
 
+        f = open(self.file_name)
+        f.close()
+        self.cfgParser = SafeConfigParser()
+        self.cfgParser.read(self.file_name)
     def get_host(self):
         return self.cfgParser.get('database', 'HOST')
 

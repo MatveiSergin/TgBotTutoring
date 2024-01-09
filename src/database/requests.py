@@ -1,6 +1,6 @@
 import pymysql
 import pymysql.cursors
-from config.sql_query import ADD_STUDENT, SELECT_ALL_PERSONS, SELECT_STUDENT, SELECT_TUTOR, SELECT_STUDENTS_BY_TUTOR
+from config.sql_query import *
 from .database_property import DBProperties
 
 class Singleton(type):
@@ -11,10 +11,10 @@ class Singleton(type):
         return cls._instances[cls]
 class Database(metaclass=Singleton):
     connection = None
-    properties = DBProperties()
-    def connect_db(self):
+    def __init__(self):
         if self.connection is None:
             print("Создание нового подключения к бд")
+            self.properties = DBProperties()
             try:
                 self.connection = pymysql.connect(
                     host=self.properties.get_host(),
@@ -25,7 +25,7 @@ class Database(metaclass=Singleton):
                     cursorclass=pymysql.cursors.DictCursor
                 )
             except Exception as ex:
-                print(ex)
+                print(1, ex)
     def execute(self, query: str):
         result = None
         try:
@@ -63,6 +63,26 @@ def select_person(user_id: int, role: str):
 def select_person_by_tutor(tutor_name: str):
     return Database().execute(SELECT_STUDENTS_BY_TUTOR.format(tutor_name))
 
+def add_new_dz(student_id: int, path_to_file: str):
+    Database().execute(ADD_NEW_DZ.format(count_dz_for_student(student_id), student_id, path_to_file))
 
+def select_last_dz_id(student_id: int):
+    return Database().execute(SELECT_LAST_DZ_ID.format(student_id))
 
+def add_answer_for_dz(dz_id: int, student_id: int, task_number: int, answer: str):
+    Database().execute(ADD_ANSWER_FOR_DZ.format(dz_id, student_id, task_number, answer))
 
+def select_dz_by_number(number_dz: int, student_id: int):
+    return Database().execute(SELECT_DZ.format(number_dz, student_id))
+
+def count_answers_for_dz(dz_id: int, student_id: int):
+    return Database().execute(COUNT_ANSWERS_FOR_DZ.format(dz_id, student_id))[0]['COUNT(task_number)']
+def select_answers(dz_id: int, student_id: int):
+    count = count_answers_for_dz(dz_id, student_id)
+    answers = []
+    for i in range(1, count + 1):
+        answers.append(f"{i}: {Database().execute(SELECT_ANSWER.format(dz_id, student_id, i))[0]['answer']}")
+    return answers
+
+def count_dz_for_student(student_id: int):
+    return Database().execute(COUNT_DZ_FOR_STUDENT.format(student_id))[0]["COUNT(id)"]

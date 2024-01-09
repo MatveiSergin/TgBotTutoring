@@ -1,4 +1,4 @@
-ADD_STUDENT = "INSERT INTO students (user_id, tutor_id, user_name, name) VALUES ({0}, '{1}', '{2}', '{3}');"
+ADD_STUDENT = "INSERT INTO students (student_id, tutor_id, user_name, name) VALUES ({0}, '{1}', '{2}', '{3}');"
 
 SELECT_ALL_PERSONS = """
 SELECT * FROM {0};
@@ -16,19 +16,47 @@ WHERE tutor_id = {0};
 
 SELECT_STUDENTS_BY_TUTOR = """
 SELECT student_id, name FROM students
-WHERE tutor_id = (SELECT tutor_id FROM tutors WHERE name = {});
+WHERE tutor_id = (SELECT tutor_id FROM tutors WHERE name = '{}');
 """
 
 ADD_NEW_DZ = """
 INSERT INTO dz 
-(user_id, path_to_file, creation_at)
+(id, student_id, path_to_file, creation_at)
 VALUES
-({0}, {1}, now());
+(({0} + 1), {1}, '{2}', now());
 """
 
-ADD_ANSWERS_FOR_DZ = """
+
+ADD_ANSWER_FOR_DZ = """
 INSERT INTO answers
-(dz_id, task_number)
+(dz_id, student_id, task_number, answer)
 VALUES
-({0}, {1}) 
+({0}, {1}, {2}, '{3}');
+"""
+
+SELECT_LAST_DZ_ID = """
+SELECT id FROM dz
+WHERE student_id = {0}
+ORDER BY id DESC
+LIMIT 1;
+"""
+
+COUNT_DZ_FOR_STUDENT = """
+SELECT COUNT(id) FROM dz
+WHERE student_id = {0};
+"""
+
+SELECT_DZ = """
+SELECT path_to_file FROM dz
+WHERE id = {0} AND student_id = {1};
+"""
+
+SELECT_ANSWER = """
+SELECT answer FROM answers
+WHERE dz_id = {0} AND student_id = {1} AND task_number = {2};
+"""
+
+COUNT_ANSWERS_FOR_DZ = """
+SELECT COUNT(task_number) FROM answers
+WHERE dz_id = {0} AND student_id = {1};
 """

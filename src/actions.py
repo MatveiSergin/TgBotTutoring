@@ -1,12 +1,11 @@
-from roles import Student
+from roles import Student, Tutor
 class Action():
 
-    def __init__(self, person: Student):
+    def __init__(self, person: Student | Tutor):
         self.person = person
 
     def get_last_dz(self):
         pass
-
     def get_all_dz(self):
         pass
 
@@ -16,5 +15,5 @@ class Action():
     def get_manual(self):
         pass
 
-    def download_task(self):
+    def download_task(self, student_id: int, ):
         pass

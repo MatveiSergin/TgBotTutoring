@@ -1,31 +1,49 @@
 from database.requests import select_all_persons, select_person, add_new_student, select_person_by_tutor
 class Student():
-
-    def __init__(self, user_id: int):
-        self.user_id = user_id
+    def __init__(self, student_id: int):
+        self.user_id = student_id
         self.role = 'student'
-    def isvalid(self):
-        students = select_person(self.user_id, self.role)
-        return students is not None
 
-    def register(self, tutor_name: str, user_name: str, name: str):
+        self.isval = self.isvalid()
+        if self.isval:
+            student = select_person(self.user_id, self.role)[0]
+            self.user_name = student['user_name']
+            self.name = student['name']
+            self._tutor_id = student['tutor_id']
+    def isvalid(self) -> bool:
+        students = select_person(self.user_id, self.role)
+        return bool(students)
+
+    def register(self, user_name: str, tutor_name: str, name: str):
         self.user_name = user_name
         self.name = name
-        self.tutor_id = filter(lambda x: x["name"] == tutor_name, select_all_persons("tutor")).next()["tutor_id"]
         try:
-            add_new_student(self.user_id, self.tutor_id, self.user_name, self.name)
+            self._tutor_id = next(filter(lambda x: x["name"].lower() == tutor_name, select_all_persons("tutor")))["tutor_id"]
+        except StopIteration:
+            print("нету учителя епт")
+        try:
+            add_new_student(self.user_id, self._tutor_id, self.user_name, self.name)
         except Exception as ex:
             print("add_new_person dont add new person", ex)
 
+    def get_tutor(self):
+        data = select_person(self._tutor_id, 'tutor')
+        tutor = Tutor(int(data['tutor_id']))
+        return tutor
 
 class Tutor():
-    def __init__(self, user_id: int):
-        self.user_id = user_id
+    def __init__(self, tutor_id: int):
+        self.user_id = tutor_id
         self.role = 'tutor'
-
-    def isvalid(self):
         data = select_person(self.user_id, self.role)
-        return data is not None
+        self.isval = bool(data)
+        if self.isval:
+            self.name = data[0]["name"]
+    def isvalid(self) -> bool:
+        return self.isval
 
-    def get_students(self):
-        pass
+    def get_students(self) -> set[Student]:
+        if not self.isval:
+            return set()
+        students = set(Student(int(student_id)) for student_id in map(lambda x: x['student_id'], select_person_by_tutor(self.name)))
+        return students
