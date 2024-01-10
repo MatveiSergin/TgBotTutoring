@@ -86,3 +86,17 @@ def select_answers(dz_id: int, student_id: int):
 
 def count_dz_for_student(student_id: int):
     return Database().execute(COUNT_DZ_FOR_STUDENT.format(student_id))[0]["COUNT(id)"]
+
+def select_student_by_name(student_name: str):
+    return Database().execute(SELECT_STUDENT_BY_NAME.format(student_name))[0]["student_id"]
+
+def update_answers_for_dz(student_name: str, dz_id: int, task_number: int, cur_ans: str):
+    student_id = select_student_by_name(student_name)
+    Database().execute(UPDATE_ANSWERS_FOR_DZ.format(cur_ans, dz_id, student_id, task_number))
+
+def select_path_to_file(id: int, student_name: str):
+    student_id = int(select_student_by_name(student_name))
+    return Database().execute(SELECT_PATH_TO_FILE.format(student_id, id))[0]['path_to_file']
+def update_dz():
+    pass
+

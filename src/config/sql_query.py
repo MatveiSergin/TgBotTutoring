@@ -9,6 +9,11 @@ SELECT * FROM students
 WHERE student_id = {0};
 """
 
+SELECT_STUDENT_BY_NAME = """
+SELECT student_id FROM students
+WHERE name = '{0}';
+"""
+
 SELECT_TUTOR = """
 SELECT * FROM tutors
 WHERE tutor_id = {0};
@@ -59,4 +64,15 @@ WHERE dz_id = {0} AND student_id = {1} AND task_number = {2};
 COUNT_ANSWERS_FOR_DZ = """
 SELECT COUNT(task_number) FROM answers
 WHERE dz_id = {0} AND student_id = {1};
+"""
+
+UPDATE_ANSWERS_FOR_DZ = """
+UPDATE answers
+SET answer = '{0}'
+WHERE dz_id = {1} AND student_id = {2} AND task_number = {3};
+"""
+
+SELECT_PATH_TO_FILE = """
+SELECT path_to_file FROM dz
+WHERE student_id = {0} AND id = {1}
 """
