@@ -74,5 +74,11 @@ WHERE dz_id = {1} AND student_id = {2} AND task_number = {3};
 
 SELECT_PATH_TO_FILE = """
 SELECT path_to_file FROM dz
-WHERE student_id = {0} AND id = {1}
+WHERE student_id = {0} AND id = {1};
 """
+
+DELETE_DZ = """
+DELETE FROM dz
+WHERE id = {0} AND student_id = {1};
+"""
+

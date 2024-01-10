@@ -67,7 +67,7 @@ def add_new_dz(student_id: int, path_to_file: str):
     Database().execute(ADD_NEW_DZ.format(count_dz_for_student(student_id), student_id, path_to_file))
 
 def select_last_dz_id(student_id: int):
-    return Database().execute(SELECT_LAST_DZ_ID.format(student_id))
+    return Database().execute(SELECT_LAST_DZ_ID.format(student_id))[0]["id"]
 
 def add_answer_for_dz(dz_id: int, student_id: int, task_number: int, answer: str):
     Database().execute(ADD_ANSWER_FOR_DZ.format(dz_id, student_id, task_number, answer))
@@ -94,9 +94,10 @@ def update_answers_for_dz(student_name: str, dz_id: int, task_number: int, cur_a
     student_id = select_student_by_name(student_name)
     Database().execute(UPDATE_ANSWERS_FOR_DZ.format(cur_ans, dz_id, student_id, task_number))
 
-def select_path_to_file(id: int, student_name: str):
+def select_path_to_file(dz_id: int, student_name: str):
     student_id = int(select_student_by_name(student_name))
-    return Database().execute(SELECT_PATH_TO_FILE.format(student_id, id))[0]['path_to_file']
-def update_dz():
-    pass
+    return Database().execute(SELECT_PATH_TO_FILE.format(student_id, dz_id))[0]['path_to_file']
+def delete_dz(dz_id: int, student_name: str):
+    student_id = int(select_student_by_name(student_name))
+    Database().execute(DELETE_DZ.format(dz_id, student_id))
 
