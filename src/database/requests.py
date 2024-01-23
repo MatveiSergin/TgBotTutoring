@@ -25,7 +25,7 @@ class Database(metaclass=Singleton):
                     cursorclass=pymysql.cursors.DictCursor
                 )
             except Exception as ex:
-                print(1, ex)
+                print(ex)
     def execute(self, query: str):
         result = None
         try:
@@ -79,9 +79,9 @@ def count_answers_for_dz(dz_id: int, student_id: int):
     return Database().execute(COUNT_ANSWERS_FOR_DZ.format(dz_id, student_id))[0]['COUNT(task_number)']
 def select_answers(dz_id: int, student_id: int):
     count = count_answers_for_dz(dz_id, student_id)
-    answers = []
+    answers = {}
     for i in range(1, count + 1):
-        answers.append(f"{i}: {Database().execute(SELECT_ANSWER.format(dz_id, student_id, i))[0]['answer']}")
+        answers[i] = Database().execute(SELECT_ANSWER.format(dz_id, student_id, i))[0]['cur_answer']
     return answers
 
 def count_dz_for_student(student_id: int):
@@ -101,3 +101,12 @@ def delete_dz(dz_id: int, student_name: str):
     student_id = int(select_student_by_name(student_name))
     Database().execute(DELETE_DZ.format(dz_id, student_id))
 
+def change_has_answer_in_dz(dz_id: int, student_id: int):
+    Database().execute(CHANGE_HAS_ANSWER_IN_DZ.format(dz_id, student_id))
+
+def select_has_answer_in_dz(dz_id: int, student_id: int):
+    return Database().execute(SELECT_HAS_ANSWER_IN_DZ.format(dz_id, student_id))[0]['has_answers']
+
+def update_answer_in_answers(dz_id: int, student_id: int, answers: list[str]):
+    for task_number in range(1, len(answers) + 1):
+        Database().execute(UPDATE_ANSWER_IN_ANSWERS.format(answers[task_number - 1], task_number, dz_id, student_id))

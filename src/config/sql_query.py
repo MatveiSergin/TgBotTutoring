@@ -34,7 +34,7 @@ VALUES
 
 ADD_ANSWER_FOR_DZ = """
 INSERT INTO answers
-(dz_id, student_id, task_number, answer)
+(dz_id, student_id, task_number, cur_answer)
 VALUES
 ({0}, {1}, {2}, '{3}');
 """
@@ -57,7 +57,7 @@ WHERE id = {0} AND student_id = {1};
 """
 
 SELECT_ANSWER = """
-SELECT answer FROM answers
+SELECT cur_answer FROM answers
 WHERE dz_id = {0} AND student_id = {1} AND task_number = {2};
 """
 
@@ -68,7 +68,7 @@ WHERE dz_id = {0} AND student_id = {1};
 
 UPDATE_ANSWERS_FOR_DZ = """
 UPDATE answers
-SET answer = '{0}'
+SET cur_answer = '{0}'
 WHERE dz_id = {1} AND student_id = {2} AND task_number = {3};
 """
 
@@ -82,3 +82,19 @@ DELETE FROM dz
 WHERE id = {0} AND student_id = {1};
 """
 
+CHANGE_HAS_ANSWER_IN_DZ = """
+UPDATE dz
+SET has_answers = true
+WHERE id = {0} AND student_id = {1};
+"""
+
+SELECT_HAS_ANSWER_IN_DZ = """
+SELECT has_answers FROM dz
+WHERE id = {0} AND student_id = {1};
+"""
+
+UPDATE_ANSWER_IN_ANSWERS = """
+UPDATE answers
+SET answer = '{0}'
+WHERE task_number = {1} AND dz_id  = {2} AND student_id  = {3};
+"""
