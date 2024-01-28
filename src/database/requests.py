@@ -1,14 +1,10 @@
 import pymysql
 import pymysql.cursors
+
+from config.properties import Singleton
 from config.sql_query import *
 from .database_property import DBProperties
 
-class Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
 class Database(metaclass=Singleton):
     connection = None
     def __init__(self):
@@ -67,7 +63,11 @@ def add_new_dz(student_id: int, path_to_file: str):
     Database().execute(ADD_NEW_DZ.format(count_dz_for_student(student_id), student_id, path_to_file))
 
 def select_last_dz_id(student_id: int):
-    return Database().execute(SELECT_LAST_DZ_ID.format(student_id))[0]["id"]
+    select = Database().execute(SELECT_LAST_DZ_ID.format(student_id))
+    if select:
+        return Database().execute(SELECT_LAST_DZ_ID.format(student_id))[0]["id"]
+    else:
+        return 0
 
 def add_answer_for_dz(dz_id: int, student_id: int, task_number: int, answer: str):
     Database().execute(ADD_ANSWER_FOR_DZ.format(dz_id, student_id, task_number, answer))

@@ -18,7 +18,7 @@ class Student():
         self.user_name = user_name
         self.name = name
         try:
-            self._tutor_id = next(filter(lambda x: x["name"].lower() == tutor_name, select_all_persons("tutor")))["tutor_id"]
+            self._tutor_id = next(filter(lambda x: x["name"][:-2].lower() == tutor_name, select_all_persons("tutor")))["tutor_id"]
         except StopIteration:
             print("нету учителя епт")
         try:
