@@ -6,7 +6,7 @@ class Student():
 
         self.isval = self.isvalid()
         if self.isval:
-            student = select_person(self.user_id, self.role)[0]
+            student = select_person(self.user_id, self.role)
             self.user_name = student['user_name']
             self.name = student['name']
             self._tutor_id = student['tutor_id']
@@ -38,7 +38,7 @@ class Tutor():
         data = select_person(self.user_id, self.role)
         self.isval = bool(data)
         if self.isval:
-            self.name = data[0]["name"]
+            self.name = data["name"]
     def isvalid(self) -> bool:
         return self.isval
 

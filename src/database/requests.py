@@ -51,9 +51,9 @@ def select_person(user_id: int, role: str):
     db = Database()
     result = None
     if role == "tutor":
-        result = db.execute(SELECT_TUTOR.format(user_id))
+        result = db.execute(SELECT_TUTOR.format(user_id))[0]
     elif role == "student":
-        result = db.execute(SELECT_STUDENT.format(user_id))
+        result = db.execute(SELECT_STUDENT.format(user_id))[0]
     return result
 
 def select_person_by_tutor(tutor_name: str):
