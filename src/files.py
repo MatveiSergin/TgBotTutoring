@@ -13,31 +13,25 @@ class File_faсtory:
 
     def __init__(self, file: bytes | FPDF, extension: str):
         self._file = file
-        try:
-            if os.getcwd().split("\\")[-1] == "src":
-                os.chdir(os.path.abspath('../files/'))
-            elif os.getcwd().split("\\")[-1] == "photos":
-                os.chdir(os.path.abspath('../'))
-            self.path = os.getcwd()
-        except:
-            raise Exception("no folder for files")
-        os.chdir(self.path)
 
         if extension in self.available_formats:
             self.extension = extension
         else:
             raise Exception("invalid file format")
 
+        if not os.path.exists('files'):
+            os.mkdir('files')
+
         self._name = 'file_' + str(randint(0, 10000))
         if isinstance(self._file, bytes):
-            with open(self._name, "wb") as self.saving_file:
-                self.saving_file.write(self._file)
-                os.rename(self._name, self._get_filename_with_extension())
+            with open(os.path.join('files', self._name), "wb") as saving_file:
+                saving_file.write(self._file)
+            os.rename(os.path.join('files', self._name), os.path.join('files', self._get_filename_with_extension()))
         else:
-            self._file.output(self._get_filename_with_extension())
+            self._file.output(os.path.join('files', self._get_filename_with_extension()))
 
     def _get_filename_with_extension(self):
-        return self.name + "." + self.extension
+        return f"{self.name}.{self.extension}"
     @property
     def name(self):
         if hasattr(self, '_name'):
@@ -51,18 +45,19 @@ class File_faсtory:
         else:
             self._name = name
         try:
-            os.rename(filename_with_old_extension, self._get_filename_with_extension())
+            os.rename(os.path.join('files', filename_with_old_extension), os.path.join('files', self._get_filename_with_extension()))
         except FileExistsError:
-            os.remove(self._get_filename_with_extension())
-            os.rename(filename_with_old_extension, self._get_filename_with_extension())
+            os.remove(os.path.join('files', self._get_filename_with_extension()))
+            os.rename(os.path.join('files', filename_with_old_extension), os.path.join('files', self._get_filename_with_extension()))
 
     def convert_to_pdf(self):
         if self.extension != 'pdf':
             filename_with_old_extension = self._get_filename_with_extension()
             self.extension = 'pdf'
-            dp.convert(filename_with_old_extension, self._get_filename_with_extension())
+            dp.convert(os.path.join('files', filename_with_old_extension), os.path.join('files', self._get_filename_with_extension()))
+
     def __repr__(self):
-        return self.path.replace('\\', '/') + '/' + self._get_filename_with_extension()
+        return os.path.join(os.getcwd(), 'files', self._get_filename_with_extension()).replace('\\', '/')
 
 
 
@@ -83,10 +78,7 @@ class HomeworkDocument():
             for path in self._image_paths:
                 self.add_new_task(path)
     def add_new_task(self, path: str):
-        if os.getcwd().split("\\")[-1] == "src":
-            os.chdir(os.path.abspath('../files/photos/'))
-        elif os.getcwd().split("\\")[-1] == "files":
-            os.chdir('photos')
+
         self._сounter_task += 1
         im = Image.open(path)
         width, height = im.size
@@ -102,20 +94,15 @@ class HomeworkDocument():
 
 class Jpg_file:
     def __init__(self, file: bytes):
-        if os.getcwd().split("\\")[-1] == "src":
-            os.chdir(os.path.abspath('../files/'))
-            if not os.path.isdir("photos"):
-                os.mkdir("photos")
-            os.chdir("photos")
-            self.path = os.getcwd()
-        else:
-            self.path = os.getcwd()
+        if not os.path.isdir(os.path.join("files", "photos")):
+            os.mkdir(os.path.join('files', "photos"))
+
         self.name = f"file{randint(0, 1000)}.jpg"
-        with open(self.name, "wb") as self.file_photo:
+        with open(os.path.join('files', 'photos', self.name), "wb") as self.file_photo:
             self.file_photo.write(file)
 
     def __repr__(self):
-        return self.path + "\\" + self.name
+        return os.path.join(os.getcwd(), 'files', 'photos', self.name).replace("\\", "/")
 
     def __del__(self):
         os.remove(repr(self))

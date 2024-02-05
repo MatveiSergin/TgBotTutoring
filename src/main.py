@@ -1,41 +1,53 @@
 import time
 import telebot as tb
 import os
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardRemove
 from config.properties import TelebotProperties
 from files import File_faсtory, HomeworkDocument, Jpg_file
 from roles import Student, Tutor
 from database import requests
 import threading
 
-
 class Deleting_telebot(tb.TeleBot):
     def send_message(self, *args, is_deleting: bool = True, **kwargs) -> Message:
         msg = super().send_message(*args, **kwargs)
         if is_deleting:
-            thr = threading.Thread(target=delete_message_with_delay, args=(msg,))
+            thr = threading.Thread(target=self.delete_message_with_delay, args=(msg,))
             thr.start()
         return msg
 
     def send_document(self, *args, is_deleting: bool = True, **kwargs) -> Message:
         msg = super().send_document(*args, **kwargs)
         if is_deleting:
-            thr = threading.Thread(target=delete_message_with_delay, args=(msg,))
+            thr = threading.Thread(target=self.delete_message_with_delay, args=(msg,))
             thr.start()
         return msg
 
     def process_new_messages(self, new_messages):
-        thr = threading.Thread(target=delete_message_with_delay, args=(new_messages[0],))
+        thr = threading.Thread(target=self.delete_message_with_delay, args=(new_messages[0],))
         thr.start()
         super().process_new_messages(new_messages)
 
-
-def delete_message_with_delay(message):
-    time.sleep(3600)
-    bot.delete_message(message.chat.id, message.id)
-
+    def delete_message_with_delay(self, message):
+        time.sleep(5)
+        self.delete_message(message.chat.id, message.id)
 
 bot = Deleting_telebot(token=TelebotProperties().get_token())
+
+class permission_to_receive_photo:
+    is_allowed = False
+
+    @classmethod
+    def change_permission(cls, value: bool = None):
+        if value is None:
+            cls.is_allowed = not cls.is_allowed
+        else:
+            cls.is_allowed = value
+
+    @classmethod
+    def get_permission(cls, *args, **kwargs):
+        return cls.is_allowed
+
 
 
 @bot.message_handler(commands=["start"])
@@ -118,7 +130,7 @@ def navigation_for_tutor(person: Tutor):
     button4 = KeyboardButton(text="Исправить ошибку")
     keyboard.add(button1, button2, button3, button4)
 
-    msg = bot.send_message(person.user_id, text="Выбери дейтсвие:", reply_markup=keyboard)
+    msg = bot.send_message(person.user_id, text="Выбери дейтсвие:", reply_markup=keyboard, is_deleting=False)
     bot.register_next_step_handler(msg, define_person_action, person)
 
 
@@ -143,9 +155,10 @@ def define_person_action(message: Message, person: Student | Tutor):
         case 'Получить дз по номеру':
             get_dz_by_number(person) if isinstance(person, Student) else None
         case 'Проверка дз':
-            check_dz(person) if isinstance(person, Student) else None
+            Checker_dz(person) if isinstance(person, Student) else None
         case 'Загрузка дз':
-            download_task(message, person) if isinstance(person, Tutor) else None
+            if isinstance(person, Tutor):
+                Downloader_task(message, person).download_task()
         case 'Просмотр дз':
             get_dz_for_tutor(message, person) if isinstance(person, Tutor) else None
         case 'Просмотр ответов':
@@ -175,7 +188,7 @@ def navigation_with_mistakes(message: Message, person: None | Tutor = None):
         if text == "Назад":
             navigation(message, person)
         elif text == "Изменить ответ":
-            msg = bot.send_message(person.user_id, text="Если вы ввели не правильно один из ответов"
+            bot.send_message(person.user_id, text="Если вы ввели не правильно один из ответов"
                                                         " в домашней работе вам следует:\n"
                                                         " 1) выбрать ученика. При желании можно "
                                                         "посмотреть при помощи команды /my_students\n"
@@ -185,7 +198,7 @@ def navigation_with_mistakes(message: Message, person: None | Tutor = None):
                                                         "3) Выбрать номер ответа, который "
                                                         "следует отредактировать. При желании "
                                                         "можно просмотреть все правильные ответы "
-                                                        "для дз при помощи команды: /get_answer")
+                                                        "для дз при помощи команды: /get_answer", reply_markup=ReplyKeyboardRemove())
 
             msg = bot.send_message(person.user_id, text="Введите одной строкой данную информацию.\n"
                                                         "Например: <strong>Иван И dz-1 ans-1: 123</strong>\n"
@@ -326,13 +339,13 @@ def get_dz_for_tutor(message: Message, person: Tutor | None = None, isStuff=Fals
             return
         elif text not in students_dict.keys():
             msg = bot.send_message(person.user_id,
-                                   text="Введено неверное имя ученика. Попробуйте просто нажать на клавиатуру")
+                                   text="Введено неверное имя ученика. Попробуйте просто нажать на клавиатуру", reply_markup=ReplyKeyboardRemove())
 
             return
         student = Student(int(students_dict[text]))
         counter = requests.count_dz_for_student(student.user_id)
         msg = bot.send_message(person.user_id,
-                               text=f"выберите номер домашнего задания, который хотите получить. Всего у ученика {counter} дз.")
+                               text=f"выберите номер домашнего задания, который хотите получить. Всего у ученика {counter} дз.", reply_markup=ReplyKeyboardRemove())
 
         if not isStuff:
             bot.register_next_step_handler(msg, get_file, student, counter)
@@ -362,7 +375,7 @@ def get_dz_for_tutor(message: Message, person: Tutor | None = None, isStuff=Fals
                 bot.register_next_step_handler(msg, define_person_action, person)
             except FileNotFoundError as ex:
                 print(ex)
-                msg = bot.send_message(person.user_id, text="Ошибка")
+                bot.send_message(person.user_id, text="Ошибка")
 
                 navigation(message, person)
                 return
@@ -376,7 +389,7 @@ def get_answers_for_tutor(message: Message, person=None, isStuff=False, student=
         if person is None:
             person = init_person(message)
         if not isinstance(person, Tutor):
-            msg = bot.send_message(person.user_id, text="Ошибка доступа")
+            bot.send_message(person.user_id, text="Ошибка доступа")
 
             navigation(message, person)
             return
@@ -386,8 +399,6 @@ def get_answers_for_tutor(message: Message, person=None, isStuff=False, student=
         if person is None:
             person = init_person(message)
         text = message.text
-        keyboard = ReplyKeyboardMarkup()
-        keyboard.add(KeyboardButton(text="Назад"))
         counter = requests.count_dz_for_student(student.user_id)
         try:
             number = int(text)
@@ -398,7 +409,7 @@ def get_answers_for_tutor(message: Message, person=None, isStuff=False, student=
             answers = "\n".join(list(
                 map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(number, student.user_id).items())))
 
-        msg = bot.send_message(person.user_id, text=f"Ответы для {student.name} по домашке dz-{number}:\n{answers}")
+        bot.send_message(person.user_id, text=f"Ответы для {student.name} по домашке dz-{number}:\n{answers}")
 
         navigation(message, person)
 
@@ -416,21 +427,30 @@ def get_list_students(message: Message, person: Tutor | None = None):
     for student in person.get_students():
         text += f"{student.name}\n"
     if not text:
-        msg = bot.send_message(person.user_id, text="У вас еще нет учеников")
+        bot.send_message(person.user_id, text="У вас еще нет учеников")
 
     else:
-        msg = bot.send_message(person.user_id, text=text)
+        bot.send_message(person.user_id, text=text)
 
     navigation(message, person)
 
 
-def download_task(message: Message, person: Tutor):
-    student: Student | None = None
-    photo_paths = []
+class Downloader_task:
+    instance = None
 
-    def choice_student():
+    def __init__(self, message: Message, person: Tutor):
+        self.student: Student | None = None
+        self.photo_paths = []
+        self.message = message
+        self.person = person
+
+    def download_task(self):
+        self.__class__.instance = self
+        self.choice_student()
+
+    def choice_student(self):
         keyboard = tb.types.ReplyKeyboardMarkup(resize_keyboard=True)
-        students = person.get_students()
+        students = self.person.get_students()
         students_dict = dict()
 
         for student in students:
@@ -440,19 +460,19 @@ def download_task(message: Message, person: Tutor):
 
         back_nav = KeyboardButton(text="Назад")
         keyboard.add(back_nav)
-        msg = bot.send_message(person.user_id, text="Выбери ученика:", reply_markup=keyboard)
+        msg = bot.send_message(self.person.user_id, text="Выбери ученика:", reply_markup=keyboard)
 
-        bot.register_next_step_handler(msg, define_student, students_dict)
+        bot.register_next_step_handler(msg, self.define_student, students_dict)
 
-    def define_student(message: Message, students_dict: dict):
+    def define_student(self, message: Message, students_dict: dict):
         text = message.text
         if text == "Назад":
-            navigation(message, person)
+            navigation(message, self.person)
             return
         elif text not in students_dict.keys():
-            bot.send_message(person.user_id,
-                             text="Введено неверное имя ученика. Следующий раз попробуйте просто нажать на клавиатуру")
-            navigation(message, person)
+            bot.send_message(self.person.user_id,
+                             text="Введено неверное имя ученика. Следующий раз попробуйте просто нажать на клавиатуру", reply_markup=ReplyKeyboardRemove())
+            navigation(message, self.person)
             return
 
         keyboard = tb.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -461,93 +481,98 @@ def download_task(message: Message, person: Tutor):
         keyboard.add(button1)
         keyboard.add(button2)
 
-        nonlocal student
-        student = Student(int(students_dict[text]))
-        msg = bot.send_message(person.user_id, text="Выбери способ добавления дз:", reply_markup=keyboard)
-        bot.register_next_step_handler(msg, define_method_for_sending)
+        self.student = Student(int(students_dict[text]))
+        msg = bot.send_message(self.person.user_id, text="Выбери способ добавления дз:", reply_markup=keyboard)
+        bot.register_next_step_handler(msg, self.define_method_for_sending)
 
-    def define_method_for_sending(message: Message):
+    def define_method_for_sending(self, message: Message):
         if message.text == "Отправлю скрины условий":
-            msg = bot.send_message(person.user_id,
-                                   text="Отправьте одним сообщением все изображения с условиями. Один скрин - одно задание. Количество скринов должно совпадать с количеством ответов! После отправки всех условий нажмите /done")
+            bot.send_message(self.person.user_id, text="Отправьте одним сообщением все изображения с условиями. Один скрин - одно задание. Количество скринов должно совпадать с количеством ответов! После отправки всех условий нажмите /done", reply_markup=ReplyKeyboardRemove())
             permission_to_receive_photo.change_permission(value=True)
-            bot.register_next_step_handler(msg, define_photos)
 
         elif message.text == "Отправлю pdf, docx или doc файлом":
-            msg = bot.send_message(person.user_id, text="Присылайте файл.")
-            bot.register_next_step_handler(msg, define_file)
+            msg = bot.send_message(self.person.user_id, text="Присылайте файл.", reply_markup=ReplyKeyboardRemove())
+            bot.register_next_step_handler(msg, self.define_file)
 
         else:
-            bot.send_message(person.user_id, text="Ошибка. Следующий раз воспользуйтесь клавиатурой")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Ошибка. Следующий раз воспользуйтесь клавиатурой", reply_markup=ReplyKeyboardRemove())
+            navigation(message, self.person)
 
-    @bot.message_handler(content_types=['photos'])
-    @bot.message_handler(func=permission_to_receive_photo.get_permission)
-    def define_photos(msg: Message):
+    def define_photos(self, msg: Message):
         if msg.photo:
             file_id = msg.photo[-1].file_id
-            photo_paths.append(bot.get_file(file_id).file_path)
-            bot.register_next_step_handler(msg, define_photos)
-        elif photo_paths:
-            stop_receiving_photo(message)
+            self.photo_paths.append(bot.get_file(file_id).file_path)
+        elif self.photo_paths:
+            self.stop_receiving_photo(msg)
         else:
-            bot.send_message(person.user_id, text="Ошибка. Вам необходимо отправить изображение.")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Ошибка. Вам необходимо отправить изображение.")
+            navigation(self.message, self.person)
 
-    @bot.message_handler(commands=['done'])
-    def stop_receiving_photo(message: Message):
+    def stop_receiving_photo(self, message: Message):
         if not permission_to_receive_photo.get_permission():
             return
 
         permission_to_receive_photo.change_permission(value=False)
         jpg_files = []
-
-        for path in photo_paths:
-            jpg_files.append(Jpg_file(bot.download_file(path)))
+        if self.photo_paths:
+            for path in self.photo_paths:
+                jpg_files.append(Jpg_file(bot.download_file(path)))
+        else:
+            bot.send_message(self.person, text="Необходимо прикрипить изображения")
 
         homework = HomeworkDocument(*list(map(repr, jpg_files)))
         file = homework.get_file()
-        file.name = student.name
-        requests.add_new_dz(student.user_id, str(file))
-        msg = bot.send_message(person.user_id,
+        file.name = self.student.name
+        requests.add_new_dz(self.student.user_id, repr(file))
+        msg = bot.send_message(self.person.user_id,
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
-        send_dz(msg, student, requests.select_last_dz_id(student.user_id))
-        bot.register_next_step_handler(msg, define_answers)
 
-    def define_file(message: Message):
+        send_dz(msg, self.student, requests.select_last_dz_id(self.student.user_id))
+        bot.register_next_step_handler(msg, self.define_answers)
+
+    def define_file(self, message: Message):
         try:
             file_info = bot.get_file(message.document.file_id)
             file = File_faсtory(bot.download_file(file_info.file_path), file_info.file_path.split('.')[-1])
-            file.name = student.name
+            file.name = self.student.name
             file.convert_to_pdf()
         except AttributeError:
-            bot.send_message(person.user_id, text="Ошибка чтения файла. Необходимо прикрепить файл.")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Ошибка чтения файла. Необходимо прикрепить файл.")
+            navigation(message, self.person)
             return
 
-        requests.add_new_dz(student.user_id, str(file))
-        msg = bot.send_message(person.user_id,
+        requests.add_new_dz(self.student.user_id, str(file))
+        msg = bot.send_message(self.person.user_id,
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        send_dz(msg, student, requests.select_last_dz_id(student.user_id))
-        bot.register_next_step_handler(msg, define_answers)
+        send_dz(msg, self.student, requests.select_last_dz_id(self.student.user_id))
+        bot.register_next_step_handler(msg, self.define_answers)
 
-    def define_answers(message: Message):
+    def define_answers(self, message: Message):
         answers = message.text.split()
-        dz_id = requests.select_last_dz_id(student.user_id)
+        dz_id = requests.select_last_dz_id(self.student.user_id)
         number_task = 1
 
         for answer in answers:
-            requests.add_answer_for_dz(dz_id, student.user_id, number_task, answer)
+            requests.add_answer_for_dz(dz_id, self.student.user_id, number_task, answer)
             number_task += 1
 
-        msg = bot.send_message(person.user_id,
+        msg = bot.send_message(self.person.user_id,
                                text=f"Ответы в количестве {number_task - 1} загружены. При обнаружении ошибки использовать команду: /mistake")
-        navigation(msg, person)
+        navigation(msg, self.person)
 
-    choice_student()
+
+@bot.message_handler(func=permission_to_receive_photo.get_permission, content_types=['photo'])
+def download_photos_for_dz(message: Message):
+    dt = Downloader_task.instance
+    dt.define_photos(message)
+
+@bot.message_handler(func=permission_to_receive_photo.get_permission, commands=['done'])
+def stop_download_photos_for_dz(message: Message):
+    dt = Downloader_task.instance
+    dt.stop_receiving_photo(message)
 
 
 @bot.message_handler(commands=["get_last_dz"])
@@ -601,64 +626,68 @@ def send_dz(message: Message, person: Student, number: int):
         navigation(message, person)
 
 
-def check_dz(person: Student):
-    def define_dz():
-        counter = requests.count_dz_for_student(person.user_id)
-        msg = bot.send_message(person.user_id,
+class Checker_dz:
+
+    def __init__(self, person: Student):
+        self.person = person
+
+    def check_dz(self):
+        self.define_dz()
+    def define_dz(self):
+        counter = requests.count_dz_for_student(self.person.user_id)
+        msg = bot.send_message(self.person.user_id,
                                text=f"Введите номер домашней работы, на которую вы хотите дать ответ. Последняя домашка - dz-{counter}")
 
-        bot.register_next_step_handler(msg, define_answer)
+        bot.register_next_step_handler(msg, self.define_answer)
 
-    def define_answer(message: Message):
+    def define_answer(self, message: Message):
         text = message.text
         try:
-            dz_id = int(text)
+            self.dz_id = int(text)
         except ValueError:
-            bot.send_message(person.user_id,
+            bot.send_message(self.person.user_id,
                              text="Введено неверное значение. Необходимо вводить только одно число - номер дз")
-            navigation(message, person)
+            navigation(message, self.person)
             return
 
-        if not 0 < dz_id <= requests.count_dz_for_student(person.user_id):
-            bot.send_message(person.user_id, text="Домашней работы с таким номером не существует")
-            navigation(message, person)
+        if not 0 < self.dz_id <= requests.count_dz_for_student(self.person.user_id):
+            bot.send_message(self.person.user_id, text="Домашней работы с таким номером не существует")
+            navigation(message, self.person)
             return
 
-        if requests.select_has_answer_in_dz(dz_id, person.user_id):
-            bot.send_message(person.user_id, text="Ответ для домашней работы уже был дан. Результаты изменить нельзя")
-            navigation(message, person)
+        if requests.select_has_answer_in_dz(self.dz_id, self.person.user_id):
+            bot.send_message(self.person.user_id, text="Ответ для домашней работы уже был дан. Результаты изменить нельзя")
+            navigation(message, self.person)
             return
 
-        msg = bot.send_message(person.user_id,
-                               text=f"Вводите ответы для dz-{dz_id}\n")
-        bot.register_next_step_handler(msg, check_answers, dz_id)
+        msg = bot.send_message(self.person.user_id,
+                               text=f"Вводите ответы для dz-{self.dz_id}\n")
+        bot.register_next_step_handler(msg, self.check_answers)
 
-    def check_answers(message: Message, dz_id: int):
+    def check_answers(self, message: Message):
         answers = message.text.split()
-        correct_answers = requests.select_answers(dz_id, person.user_id)
+        correct_answers = requests.select_answers(self.dz_id, self.person.user_id)
         if len(answers) != len(correct_answers):
-            bot.send_message(person.user_id, text="Введено неверное количество ответов")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Введено неверное количество ответов")
+            navigation(message, self.person)
             return
 
         number_correct_answer = sum(
             list(correct_answers.values())[i] == answers[i] for i in range(len(correct_answers)))
-        requests.update_answer_in_answers(dz_id, person.user_id, answers)
-        requests.change_has_answer_in_dz(dz_id, person.user_id)
-        bot.send_message(person.user_id,
-                         text=f"Для домашней работы dz-{dz_id} введено {number_correct_answer} из {len(answers)} верных ответов. Результаты отправлены преподавателю.",
+        requests.update_answer_in_answers(self.dz_id, self.person.user_id, answers)
+        requests.change_has_answer_in_dz(self.dz_id, self.person.user_id)
+        bot.send_message(self.person.user_id,
+                         text=f"Для домашней работы dz-{self.dz_id} введено {number_correct_answer} из {len(answers)} верных ответов. Результаты отправлены преподавателю.",
                          is_deleting=False)
-        tutor = person.get_tutor()
+        tutor = self.person.get_tutor()
 
         result = ""
         for i in range(len(answers)):
             result += f"{i + 1}) {correct_answers[i + 1]} / {answers[i]}\n"
         bot.send_message(tutor.user_id,
-                         text=f"{person.name} выполнил домашнюю работу: dz-{dz_id}. Результат: {number_correct_answer} из {len(answers)}.\n {result}",
+                         text=f"{self.person.name} выполнил домашнюю работу: dz-{self.dz_id}. Результат: {number_correct_answer} из {len(answers)}.\n {result}",
                          is_deleting=False)
-        navigation(message, person)
-
-    define_dz()
+        navigation(message,self.person)
 
 @bot.message_handler(commands=["get_manual"])
 def get_manual(message: Message):
@@ -668,19 +697,6 @@ def get_manual(message: Message):
                                            "например если это математический график или программа на языке программимрования, то ставьте вместо ответа: -.\n"
                                            "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва - - -</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
     navigation(message)
-class permission_to_receive_photo:
-    is_allowed = False
-
-    @classmethod
-    def change_permission(cls, value: bool = None):
-        if value is None:
-            cls.is_allowed = not cls.is_allowed
-        else:
-            cls.is_allowed = value
-
-    @classmethod
-    def get_permission(cls, *args, **kwargs):
-        return cls.is_allowed
 
 
 if __name__ == '__main__':
