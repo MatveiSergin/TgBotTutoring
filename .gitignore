@@ -1,6 +1,7 @@
 /.idea
 /venv
-/files
 /tests/*.jpg
 /tests/*.pdf
 /tests/*.jpeg
+/src/files/
+src/__pycache__/

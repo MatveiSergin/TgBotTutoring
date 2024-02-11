@@ -4,10 +4,6 @@ class DBProperties:
     _section = 'database'
     def __init__(self):
         self.file_name = os.path.abspath('../src/config/configDB.ini')
-
-
-        #f = open(self.file_name)
-        #f.close()
         self.cfgParser = SafeConfigParser()
         self.cfgParser.read(self.file_name)
     def get_host(self):

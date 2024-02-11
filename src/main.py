@@ -1,4 +1,6 @@
 import time
+from abc import ABC, abstractmethod
+
 import telebot as tb
 import os
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardRemove
@@ -29,7 +31,7 @@ class Deleting_telebot(tb.TeleBot):
         super().process_new_messages(new_messages)
 
     def delete_message_with_delay(self, message):
-        time.sleep(5)
+        time.sleep(100)
         self.delete_message(message.chat.id, message.id)
 
 bot = Deleting_telebot(token=TelebotProperties().get_token())
@@ -107,7 +109,7 @@ def registration(message: Message, person: Student, has_make_register=None):
                                                     f'поступлении новой домашки! \n \n После выполнения заданий, тебе '
                                                     f'необходимо отправить их на проверку также через этого бота. \n\n'
                                                     f'Для навигации нажми на: /nav\n', is_deleting=False)
-        bot.pin_chat_message(person.user_id, msg.chat.id)
+        bot.pin_chat_message(person.user_id, msg.id)
         navigation(msg, person)
 
 
@@ -155,7 +157,7 @@ def define_person_action(message: Message, person: Student | Tutor):
         case 'Получить дз по номеру':
             get_dz_by_number(person) if isinstance(person, Student) else None
         case 'Проверка дз':
-            Checker_dz(person) if isinstance(person, Student) else None
+            Checker_dz(person).check_dz() if isinstance(person, Student) else None
         case 'Загрузка дз':
             if isinstance(person, Tutor):
                 Downloader_task(message, person).download_task()
@@ -164,31 +166,43 @@ def define_person_action(message: Message, person: Student | Tutor):
         case 'Просмотр ответов':
             get_answers_for_tutor(message, person) if isinstance(person, Tutor) else None
         case 'Исправить ошибку':
-            navigation_with_mistakes(message, person) if isinstance(person, Tutor) else None
+            navigation_for_mistakes(message, person) if isinstance(person, Tutor) else None
         case 'Назад':
             navigation(message, person)
 
 
 @bot.message_handler(commands=["mistake"])
-def navigation_with_mistakes(message: Message, person: None | Tutor = None):
-    def get_info(person: Tutor):
+def navigation_for_mistakes(message: Message, person: Tutor | None = None):
+    if person is None:
+        person = init_person(message)
+    Navigator_for_mistakes(person)
+
+class Navigator_for_mistakes:
+    def __init__(self, person: Tutor):
+        if isinstance(person, Student):
+            msg = bot.send_message(person.user_id, text="Ошибка доступа")
+            navigation(msg, person)
+            return
+        self.person = person
+        self.get_info()
+    def get_info(self):
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
         button1 = KeyboardButton(text="Изменить ответ")
         button2 = KeyboardButton(text="Прикрепить новый файл")
         button3 = KeyboardButton(text="Удалить домашнюю работу")
         button4 = KeyboardButton(text="Назад")
         keyboard.add(button1, button2, button3, button4)
-        msg = bot.send_message(person.user_id, text="Выберите действие, которое необходимо выполнить:",
+        msg = bot.send_message(self.person.user_id, text="Выберите действие, которое необходимо выполнить:",
                                reply_markup=keyboard)
 
-        bot.register_next_step_handler(msg, define_mistake, person)
+        bot.register_next_step_handler(msg, self.define_mistake)
 
-    def define_mistake(message: Message, person: Tutor):
+    def define_mistake(self, message: Message):
         text = message.text
         if text == "Назад":
-            navigation(message, person)
+            navigation(message, self.person)
         elif text == "Изменить ответ":
-            bot.send_message(person.user_id, text="Если вы ввели не правильно один из ответов"
+            bot.send_message(self.person.user_id, text="Если вы ввели не правильно один из ответов"
                                                         " в домашней работе вам следует:\n"
                                                         " 1) выбрать ученика. При желании можно "
                                                         "посмотреть при помощи команды /my_students\n"
@@ -200,223 +214,115 @@ def navigation_with_mistakes(message: Message, person: None | Tutor = None):
                                                         "можно просмотреть все правильные ответы "
                                                         "для дз при помощи команды: /get_answer", reply_markup=ReplyKeyboardRemove())
 
-            msg = bot.send_message(person.user_id, text="Введите одной строкой данную информацию.\n"
+            msg = bot.send_message(self.person.user_id, text="Введите одной строкой данную информацию.\n"
                                                         "Например: <strong>Иван И dz-1 ans-1: 123</strong>\n"
                                                         "Здесь <i>'Иван И'</i> - имя и фамилия ученика;\n"
                                                         "<i>'dz-1'</i> - номер домашней работы;\n"
                                                         "<i>'ans-1'</i> - номер ответа;\n"
                                                         "<i>'123'</i> - правильный ответ.", parse_mode="HTML")
 
-            bot.register_next_step_handler(msg, update_answer, person)
+            bot.register_next_step_handler(msg, self.update_answer)
         elif text in ("Прикрепить новый файл", "Удалить домашнюю работу"):
-            msg = bot.send_message(person.user_id, text="Для данного действия вам необходимо:\n"
+            bot.send_message(self.person.user_id, text="Для данного действия вам необходимо:\n"
                                                         "1) выбрать ученика (при желании можно "
                                                         "посмотреть при помощи команды /my_students\n"
                                                         "2) выбрать номер домашней работы"
                                                         " (при желнии можно просмотреть "
                                                         "ее содержимое командой: /get_dz\n")
 
-            msg = bot.send_message(person.user_id, text="Введите одной строкой данную информацию.\n"
+            msg = bot.send_message(self.person.user_id, text="Введите одной строкой данную информацию.\n"
                                                         "Например: <b>Иван И dz-1</b>\n"
                                                         "Здесь <i>'Иван И'</i> - имя и фамилия ученика;\n"
                                                         "<i>'dz-1'</i> - номер домашней работы/", parse_mode="HTML")
 
-            bot.register_next_step_handler(msg, update_dz, person, is_delete=(text == "Удалить домашнюю работу"))
+            bot.register_next_step_handler(msg, self.update_dz, is_delete=(text == "Удалить домашнюю работу"))
 
-    def update_answer(message: Message, person: Tutor):
+    def update_answer(self, message: Message):
         text = message.text
         t = text.split()
-        if text == "/my_students":
-            get_list_students(message, person)
-            return
-        elif text == "/get_dz":
-            get_dz_for_tutor(message, person)
-            return
-        elif text == "/get_answer":
-            get_answers_for_tutor(message, person)
-            return
-        elif not (len(t) == 5 and ":" in text and text.count("-") == 2 and "dz" in text and "ans" in text):
-            msg = bot.send_message(person.user_id, text="Данные введены неверно")
-
-            navigation(msg, person)
+        if not (len(t) == 5 and ":" in text and text.count("-") == 2 and "dz" in text and "ans" in text):
+            msg = bot.send_message(self.person.user_id, text="Данные введены неверно")
+            navigation(msg, self.person)
             return
         try:
             info = {"student_name": t[0] + " " + t[1], "dz": int(t[2].split("-")[-1]),
                     "ans": int(t[3].split("-")[-1][:-1]), "cur_ans": t[-1]}
         except Exception:
-            bot.send_message(person.user_id, text="Данные введены неверно")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Данные введены неверно")
+            navigation(message, self.person)
             return
 
         requests.update_answers_for_dz(info["student_name"], info["dz"], info["ans"], info["cur_ans"])
-        msg = bot.send_message(person.user_id, text="Успешно исправлено")
+        msg = bot.send_message(self.person.user_id, text="Успешно исправлено")
 
-        navigation(message, person)
+        navigation(msg, self.person)
 
-    def update_dz(message: Message, person: Tutor, is_delete):
+    def update_dz(self, message: Message, is_delete):
         text = message.text
         t = text.split()
         if text == "/my_students":
-            get_list_students(message, person)
+            get_list_students(message, self.person)
             return
         elif text == "/get_dz":
-            get_dz_for_tutor(message, person)
+            get_dz_for_tutor(message, self.person)
             return
         elif not (len(t) == 3 and "dz-" in text):
-            msg = bot.send_message(person.user_id, text="Данные введены неверно")
+            msg = bot.send_message(self.person.user_id, text="Данные введены неверно")
 
-            navigation(msg, person)
+            navigation(msg, self.person)
             return
         try:
-            info = {"student_name": t[0] + " " + t[1], "dz": int(t[2].split("-")[-1])}
+            self.info = {"student_name": t[0] + " " + t[1], "dz": int(t[2].split("-")[-1])}
         except Exception:
-            msg = bot.send_message(person.user_id, text="Данные введены неверно")
-
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Данные введены неверно")
+            navigation(message, self.person)
             return
+
         if is_delete:
-            path = requests.select_path_to_file(info["dz"], info["student_name"])
+            path = requests.select_path_to_file(self.info["dz"], self.info["student_name"])
             os.remove(path)
-            requests.delete_dz(info["dz"], info["student_name"])
-            msg = bot.send_message(person.user_id, text="Удаление прошло успешно")
+            requests.delete_dz(self.info["dz"], self.info["student_name"])
+            msg = bot.send_message(self.person.user_id, text="Удаление прошло успешно")
 
-            navigation(message, person)
+            navigation(msg, self.person)
         else:
-            msg = bot.send_message(person.user_id, text="Прикрепите файл, на который необходимо заменить прошлый файл")
+            msg = bot.send_message(self.person.user_id, text="Прикрепите файл, на который необходимо заменить прошлый файл")
 
-            bot.register_next_step_handler(msg, get_path, person, info)
+            bot.register_next_step_handler(msg, self.get_path)
 
-    def get_path(message: Message, person: Tutor, info: dict):
+    def get_path(self, message: Message):
         try:
             file_info = bot.get_file(message.document.file_id)
             file = File_faсtory(bot.download_file(file_info.file_path), file_info.file_path.split('.')[-1])
-            file.name = requests.select_path_to_file(info["dz"], info["student_name"]).split("/")[-1][:-4]
+            file.name = requests.select_path_to_file(self.info["dz"], self.info["student_name"]).split("/")[-1][:-4]
             file.convert_to_pdf()
         except AttributeError:
-            bot.send_message(person.user_id, text="Ошибка чтения файла. Необходимо прикрепить файл.")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Ошибка чтения файла. Необходимо прикрепить файл.")
+            navigation(message, self.person)
             return
 
-        bot.send_message(person.user_id, text="Файл обновлен успешно")
+        bot.send_message(self.person.user_id, text="Файл обновлен успешно")
         bot.send_message()
-        navigation(message, person)
-
-    if person is None:
-        person = init_person(message)
-    if isinstance(person, Student):
-        navigation(message, person)
-        return
-    get_info(person)
-
+        navigation(message, self.person)
 
 @bot.message_handler(commands=["get_dz"])
-def get_dz_for_tutor(message: Message, person: Tutor | None = None, isStuff=False):
-    def define_student():
-        nonlocal person
-        if person is None:
-            person = init_person(message)
-        if isinstance(person, Student):
-            bot.send_message(person.user_id, text="Ошибка доступа")
-
-            return
-        students = person.get_students()
-        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        students_dict = dict()
-        for student in students:
-            button = KeyboardButton(text=student.name)
-            students_dict[student.name] = student.user_id
-            keyboard.add(button)
-        back = KeyboardButton(text="Назад")
-        keyboard.add(back)
-        msg = bot.send_message(person.user_id, text="Выбор ученика", reply_markup=keyboard)
-
-        bot.register_next_step_handler(msg, define_dz, students_dict)
-
-    def define_dz(message: Message, students_dict: dict):
-        text = message.text
-        if text == "Назад":
-            navigation(message, person)
-            return
-        elif text not in students_dict.keys():
-            msg = bot.send_message(person.user_id,
-                                   text="Введено неверное имя ученика. Попробуйте просто нажать на клавиатуру", reply_markup=ReplyKeyboardRemove())
-
-            return
-        student = Student(int(students_dict[text]))
-        counter = requests.count_dz_for_student(student.user_id)
-        msg = bot.send_message(person.user_id,
-                               text=f"выберите номер домашнего задания, который хотите получить. Всего у ученика {counter} дз.", reply_markup=ReplyKeyboardRemove())
-
-        if not isStuff:
-            bot.register_next_step_handler(msg, get_file, student, counter)
-        else:
-            bot.register_next_step_handler(msg, get_answers_for_tutor, isStuff=True, student=student)
-
-    def get_file(message: Message, student, counter):
-        text = message.text
-        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add(KeyboardButton(text="Назад"))
-        try:
-            number = int(text)
-        except Exception:
-            bot.send_message(person.user_id, text="Ошибка. Необходимо ввести только номер дз")
-            navigation(message, person)
-            return
-        if 0 < number <= counter:
-            path_to_file = requests.select_dz_by_number(number, student.user_id)[0]['path_to_file']
-            file_name = f"dz-{number}.pdf"
-            try:
-                file = open(path_to_file, "rb")
-                msg = bot.send_message(person.user_id, text=f"Домашняя работа для {student.name}")
-
-                msg = bot.send_document(person.user_id, document=file, visible_file_name=file_name,
-                                        reply_markup=keyboard)
-
-                bot.register_next_step_handler(msg, define_person_action, person)
-            except FileNotFoundError as ex:
-                print(ex)
-                bot.send_message(person.user_id, text="Ошибка")
-
-                navigation(message, person)
-                return
-
-    define_student()
+def get_dz_for_tutor(message: Message, person: Tutor | None = None):
+    if person is None:
+        person = init_person(message)
+    Sender_dz(person).start()
 
 
 @bot.message_handler(commands=["get_answers"])
-def get_answers_for_tutor(message: Message, person=None, isStuff=False, student=None):
-    def define_number_dz(person):
-        if person is None:
-            person = init_person(message)
-        if not isinstance(person, Tutor):
-            bot.send_message(person.user_id, text="Ошибка доступа")
+def get_answers_for_tutor(message: Message, person: Tutor | None = None):
+    if person is None:
+        person = init_person(message)
 
-            navigation(message, person)
-            return
-        get_dz_for_tutor(message, person, isStuff=True)
-
-    def get_answers(message, person):
-        if person is None:
-            person = init_person(message)
-        text = message.text
-        counter = requests.count_dz_for_student(student.user_id)
-        try:
-            number = int(text)
-        except ValueError:
-            navigation(message, person)
-            return
-        if 0 < number <= counter:
-            answers = "\n".join(list(
-                map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(number, student.user_id).items())))
-
-        bot.send_message(person.user_id, text=f"Ответы для {student.name} по домашке dz-{number}:\n{answers}")
-
+    if not isinstance(person, Tutor):
+        bot.send_message(person.user_id, text="Ошибка доступа")
         navigation(message, person)
+        return
 
-    if not isStuff:
-        define_number_dz(person)
-    else:
-        get_answers(message, person)
+    Sender_answer(person).start()
 
 
 @bot.message_handler(commands=["my_students"])
@@ -433,6 +339,7 @@ def get_list_students(message: Message, person: Tutor | None = None):
         bot.send_message(person.user_id, text=text)
 
     navigation(message, person)
+
 
 
 class Downloader_task:
@@ -518,7 +425,7 @@ class Downloader_task:
             for path in self.photo_paths:
                 jpg_files.append(Jpg_file(bot.download_file(path)))
         else:
-            bot.send_message(self.person, text="Необходимо прикрипить изображения")
+            bot.send_message(self.person.user_id, text="Необходимо прикрипить изображения")
 
         homework = HomeworkDocument(*list(map(repr, jpg_files)))
         file = homework.get_file()
@@ -528,7 +435,7 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        send_dz(msg, self.student, requests.select_last_dz_id(self.student.user_id))
+        Sender_dz(person=self.student, dz_number=requests.select_last_dz_id(self.student.user_id)).start()
         bot.register_next_step_handler(msg, self.define_answers)
 
     def define_file(self, message: Message):
@@ -547,11 +454,11 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        send_dz(msg, self.student, requests.select_last_dz_id(self.student.user_id))
+        Sender_dz(person=self.student, dz_number=requests.select_last_dz_id(self.student.user_id)).start()
         bot.register_next_step_handler(msg, self.define_answers)
 
     def define_answers(self, message: Message):
-        answers = message.text.split()
+        answers = list(map(lambda x: x.lower(), message.text.split()))
         dz_id = requests.select_last_dz_id(self.student.user_id)
         number_task = 1
 
@@ -569,77 +476,143 @@ def download_photos_for_dz(message: Message):
     dt = Downloader_task.instance
     dt.define_photos(message)
 
+
 @bot.message_handler(func=permission_to_receive_photo.get_permission, commands=['done'])
 def stop_download_photos_for_dz(message: Message):
     dt = Downloader_task.instance
     dt.stop_receiving_photo(message)
 
-
 @bot.message_handler(commands=["get_last_dz"])
-def get_last_dz(message: Message, person: Student):
+def get_last_dz(message: Message, person: Student | None = None):
+    if person is None:
+        person = init_person(message)
     number = requests.select_last_dz_id(person.user_id)
     if number:
-        send_dz(message, person, number)
+        Sender_dz(person=person, dz_number=number).start()
     else:
         bot.send_message(person.user_id, text="У вас еще нет домашек")
         navigation(message, person)
 
 
-def get_dz_by_number(person: Student):
-    def define_number():
-        counter = requests.count_dz_for_student(person.user_id)
-        msg = bot.send_message(person.user_id, text=f"Введите номер дз, которое хотите получить."
-                                                    f"Всего домашних работ у вас: {counter}")
+class Sender(ABC):
+    def __init__(self, person, student: Student=None, dz_number:int =None):
+        self.person = person
 
-        bot.register_next_step_handler(msg, get_number)
+        if dz_number is not None:
+            self.dz_number = dz_number
 
-    def get_number(message: Message):
+        if student is not None:
+            self.student = student
+        elif isinstance(person, Student):
+            self.student = person
+
+    def start(self):
+        if isinstance(self.person, Tutor) and not hasattr(self, 'student'):
+            self.define_student()
+        elif isinstance(self.person, Tutor) and not hasattr(self, 'dz_number'):
+            self.define_number()
+        elif isinstance(self.person, Tutor):
+            self.send()
+
+        if isinstance(self.person, Student) and not hasattr(self, 'dz_number'):
+            self.define_number()
+        elif isinstance(self.person, Student) :
+            self.send()
+
+    def define_student(self):
+
+        self.students_dict = dict()
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        students = self.person.get_students()
+
+        for student in students:
+            button = KeyboardButton(text=student.name)
+            self.students_dict[student.name] = student.user_id
+            keyboard.add(button)
+        back = KeyboardButton(text="Назад")
+        keyboard.add(back)
+        msg = bot.send_message(self.person.user_id, text="Выбор ученика", reply_markup=keyboard)
+
+        bot.register_next_step_handler(msg, self.get_student)
+
+    def get_student(self, message):
+        if message.text == "Назад":
+            navigation(message, self.person)
+            return
+        elif message.text not in self.students_dict.keys():
+            bot.send_message(self.person.user_id,
+                             text="Введено неверное имя ученика. Попробуйте просто нажать на клавиатуру", reply_markup=ReplyKeyboardRemove())
+            return
+        self.student = Student(int(self.students_dict[message.text]))
+
+        if not hasattr(self, 'dz_number'):
+            self.define_number()
+        else:
+            self.send()
+    def define_number(self):
+
+        self.counter_dz_for_student = requests.count_dz_for_student(self.student.user_id)
+        msg = bot.send_message(self.person.user_id, text=f"Введите номер дз, которое хотите получить."
+                                                    f"Всего домашних работ: {self.counter_dz_for_student}")
+
+        bot.register_next_step_handler(msg, self.get_number)
+
+    def get_number(self, message: Message):
         text = message.text
         try:
-            number = int(text)
+            self.dz_number = int(text)
         except Exception:
-            bot.send_message(person.user_id, text="Неверено введен номер дз.")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Неверено введен номер дз.")
+            navigation(message, self.person)
             return
 
-        if 0 < number <= requests.count_dz_for_student(person.user_id):
-            send_dz(message, person, number)
+        if 0 < self.dz_number <= self.counter_dz_for_student:
+            self.send()
         else:
-            bot.send_message(person.user_id, text="Домашней работы с таким номером не существует")
-            navigation(message, person)
+            bot.send_message(self.person.user_id, text="Домашней работы с таким номером не существует")
+            navigation(message, self.person)
 
-    define_number()
+    @abstractmethod
+    def send(self):
+        pass
+
+class Sender_answer(Sender):
+
+    def send(self):
+        answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id).items())))
+
+        msg = bot.send_message(self.person.user_id, text=f"Ответы для {self.student.name} по домашке dz-{self.dz_number}:\n{answers}")
+        navigation(msg, self.person)
 
 
-def send_dz(message: Message, person: Student, number: int):
-    file_name = f"dz-{number}.pdf"
-    path = requests.select_path_to_file(number, person.name)
-    bot.send_message(person.user_id, text="Домашнее задание:", is_deleting=False)
-    try:
-        file = open(path, "rb")
-        bot.send_document(person.user_id, document=file, visible_file_name=file_name, is_deleting=False)
-    except FileNotFoundError as ex:
-        print(ex)
-        bot.send_message(person.user_id, text="Ошибка")
-
-    finally:
-        navigation(message, person)
+class Sender_dz(Sender):
+    def send(self):
+        file_name = f"dz-{self.dz_number}.pdf"
+        path = requests.select_path_to_file(self.dz_number, self.student.name)
+        msg = bot.send_message(self.person.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
+        try:
+            file = open(path, "rb")
+            bot.send_document(self.person.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
+        except FileNotFoundError as ex:
+            print(ex)
+            bot.send_message(self.person.user_id, text="Ошибка")
+        finally:
+            navigation(msg, self.person)
 
 
 class Checker_dz:
 
     def __init__(self, person: Student):
         self.person = person
-
     def check_dz(self):
         self.define_dz()
+
     def define_dz(self):
         counter = requests.count_dz_for_student(self.person.user_id)
         msg = bot.send_message(self.person.user_id,
-                               text=f"Введите номер домашней работы, на которую вы хотите дать ответ. Последняя домашка - dz-{counter}")
+                               text=f"Введите номер домашней работы, на которую вы хотите дать ответ. Последняя домашняя работа: dz-{counter}")
 
         bot.register_next_step_handler(msg, self.define_answer)
-
     def define_answer(self, message: Message):
         text = message.text
         try:
@@ -661,11 +634,11 @@ class Checker_dz:
             return
 
         msg = bot.send_message(self.person.user_id,
-                               text=f"Вводите ответы для dz-{self.dz_id}\n")
+                               text=f"Вводите ответы для dz-{self.dz_id}\n. Инструкция по оформлению ответа: /get_manual")
         bot.register_next_step_handler(msg, self.check_answers)
 
     def check_answers(self, message: Message):
-        answers = message.text.split()
+        answers = list(map(lambda x: x.lower(), message.text.split()))
         correct_answers = requests.select_answers(self.dz_id, self.person.user_id)
         if len(answers) != len(correct_answers):
             bot.send_message(self.person.user_id, text="Введено неверное количество ответов")
@@ -685,19 +658,26 @@ class Checker_dz:
         for i in range(len(answers)):
             result += f"{i + 1}) {correct_answers[i + 1]} / {answers[i]}\n"
         bot.send_message(tutor.user_id,
-                         text=f"{self.person.name} выполнил домашнюю работу: dz-{self.dz_id}. Результат: {number_correct_answer} из {len(answers)}.\n {result}",
+                         text=f"{self.person.name} выполнил домашнюю работу: dz-{self.dz_id}. Результат: {number_correct_answer} из {len(answers)}.\n{result}",
                          is_deleting=False)
         navigation(message,self.person)
 
+@bot.message_handler(commands=['get_dz_by_number'])
+def get_dz_by_number(person: Student):
+    Sender_dz(person).start()
+
 @bot.message_handler(commands=["get_manual"])
 def get_manual(message: Message):
-    bot.send_message(message.chat.id, text="Ответы в одну строку через пробел. Количество ответов обязательно должно совпадать с количеством заданий в условии!. "
+    bot.send_message(message.chat.id, text="Ответы в одну строку через пробел. Количество ответов обязательно должно совпадать с количеством заданий в условии!"
                                            "Если в одном из заданий ответ состоит из двух или более слов, "
-                                           "то вместо пробелов в этом ответе используйте: _\nЕсли на задание нельзя дать ответ в письменном виде, "
-                                           "например если это математический график или программа на языке программимрования, то ставьте вместо ответа: -.\n"
-                                           "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва - - -</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
+                                           "то вместо пробелов в этом ответе используйте: <b>_</b>\nЕсли на задание нельзя дать ответ в письменном виде, "
+                                           "например если это математический график или программа на языке программимрования, то ставьте вместо ответа: <b>—</b>.\n"
+                                           "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва — — —</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
     navigation(message)
 
+@bot.message_handler(func=lambda x: True)
+def prompt_in_case_of_incorrect_input(message):
+    bot.send_message(message.chat.id, text="Некорректный ввод. Нажмите на: /start")
 
 if __name__ == '__main__':
     bot.polling()

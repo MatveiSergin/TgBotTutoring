@@ -7,7 +7,11 @@ from random import randint
 from roles import Student
 import docx2pdf as dp
 from datetime import datetime
+import subprocess
+import sys
 
+
+# noinspection PyPackageRequirements
 class File_faсtory:
     available_formats = ('doc', 'docx', 'pdf')
 
@@ -51,10 +55,21 @@ class File_faсtory:
             os.rename(os.path.join('files', filename_with_old_extension), os.path.join('files', self._get_filename_with_extension()))
 
     def convert_to_pdf(self):
-        if self.extension != 'pdf':
+
+        if sys.platform == 'win32' and self.extension != 'pdf':
             filename_with_old_extension = self._get_filename_with_extension()
             self.extension = 'pdf'
             dp.convert(os.path.join('files', filename_with_old_extension), os.path.join('files', self._get_filename_with_extension()))
+        elif self.extension != 'pdf':
+            filename_with_old_extension = self._get_filename_with_extension()
+            self.extension = 'pdf'
+            subprocess.call(['soffice',
+                             # '--headless',
+                             '--convert-to',
+                             'pdf',
+                             '--outdir',
+                             self._get_filename_with_extension(),
+                             filename_with_old_extension])
 
     def __repr__(self):
         return os.path.join(os.getcwd(), 'files', self._get_filename_with_extension()).replace('\\', '/')
