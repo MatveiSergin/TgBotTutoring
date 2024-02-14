@@ -1,3 +1,6 @@
-from sys import platform
+import time
 
-print(platform)
+queue = [(1, time.time() + 10)]
+time.sleep(8)
+queue.append((2, time.time() + 10))
+

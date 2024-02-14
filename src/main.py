@@ -1,19 +1,31 @@
 import time
 from abc import ABC, abstractmethod
-
 import telebot as tb
 import os
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardRemove
-from config.properties import TelebotProperties
+from config.properties import TelebotProperties, CommandsProperties
 from files import File_faсtory, HomeworkDocument, Jpg_file
 from roles import Student, Tutor
 from database import requests
 import threading
 
 class Deleting_telebot(tb.TeleBot):
-    def send_message(self, *args, is_deleting: bool = True, **kwargs) -> Message:
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.queue_menu = {}
+
+    def send_message(self, *args, is_deleting: bool = True, is_menu = False, **kwargs) -> Message:
         msg = super().send_message(*args, **kwargs)
-        if is_deleting:
+        if is_menu:
+            if msg.chat.id in self.queue_menu:
+                self.queue_menu[msg.chat.id].append(msg)
+                del_msg = self.queue_menu[msg.chat.id].pop(0)
+                thr = threading.Thread(target=self.delete_message_with_delay, args=(del_msg,))
+                thr.start()
+            else:
+                self.queue_menu[msg.chat.id] = [msg]
+        elif is_deleting:
             thr = threading.Thread(target=self.delete_message_with_delay, args=(msg,))
             thr.start()
         return msg
@@ -31,10 +43,16 @@ class Deleting_telebot(tb.TeleBot):
         super().process_new_messages(new_messages)
 
     def delete_message_with_delay(self, message):
-        time.sleep(100)
+        time.sleep(int(TelebotProperties().get_message_delay()))
         self.delete_message(message.chat.id, message.id)
 
+    def register_next_step_handler(self, *args, **kwargs):
+
+        super().register_next_step_handler(*args, **kwargs)
+        pass
+
 bot = Deleting_telebot(token=TelebotProperties().get_token())
+cmd = CommandsProperties()
 
 class permission_to_receive_photo:
     is_allowed = False
@@ -52,7 +70,7 @@ class permission_to_receive_photo:
 
 
 
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=[cmd.get_start()])
 def welcome(message: Message):
     user_id = message.chat.id
     person = init_person(message)
@@ -113,7 +131,7 @@ def registration(message: Message, person: Student, has_make_register=None):
         navigation(msg, person)
 
 
-@bot.message_handler(commands=["nav"])
+@bot.message_handler(commands=[cmd.get_navigation()])
 def navigation(message: Message, person: Student | None | Tutor = None):
     if person is None:
         person = init_person(message)
@@ -132,7 +150,7 @@ def navigation_for_tutor(person: Tutor):
     button4 = KeyboardButton(text="Исправить ошибку")
     keyboard.add(button1, button2, button3, button4)
 
-    msg = bot.send_message(person.user_id, text="Выбери дейтсвие:", reply_markup=keyboard, is_deleting=False)
+    msg = bot.send_message(person.user_id, text="Выбери действие:", reply_markup=keyboard, is_menu=True)
     bot.register_next_step_handler(msg, define_person_action, person)
 
 
@@ -145,7 +163,7 @@ def navigation_for_student(person: Student):
     keyboard.add(button2)
     keyboard.add(button3)
 
-    msg = bot.send_message(person.user_id, text=f'Выбери свое дальнейшее действие:', reply_markup=keyboard)
+    msg = bot.send_message(person.user_id, text=f'Выбери свое дальнейшее действие:', reply_markup=keyboard, is_menu=True)
     bot.register_next_step_handler(msg, define_person_action, person)
 
 
@@ -171,7 +189,7 @@ def define_person_action(message: Message, person: Student | Tutor):
             navigation(message, person)
 
 
-@bot.message_handler(commands=["mistake"])
+@bot.message_handler(commands=[cmd.get_mistake()])
 def navigation_for_mistakes(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
@@ -305,14 +323,14 @@ class Navigator_for_mistakes:
         bot.send_message()
         navigation(message, self.person)
 
-@bot.message_handler(commands=["get_dz"])
+@bot.message_handler(commands=[cmd.get_dz_for_tutor()])
 def get_dz_for_tutor(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
     Sender_dz(person).start()
 
 
-@bot.message_handler(commands=["get_answers"])
+@bot.message_handler(commands=[cmd.get_answers_for_tutor()])
 def get_answers_for_tutor(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
@@ -325,7 +343,7 @@ def get_answers_for_tutor(message: Message, person: Tutor | None = None):
     Sender_answer(person).start()
 
 
-@bot.message_handler(commands=["my_students"])
+@bot.message_handler(commands=[cmd.get_students_list()])
 def get_list_students(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
@@ -477,12 +495,12 @@ def download_photos_for_dz(message: Message):
     dt.define_photos(message)
 
 
-@bot.message_handler(func=permission_to_receive_photo.get_permission, commands=['done'])
+@bot.message_handler(func=permission_to_receive_photo.get_permission, commands=[cmd.get_stop_sending_photo()])
 def stop_download_photos_for_dz(message: Message):
     dt = Downloader_task.instance
     dt.stop_receiving_photo(message)
 
-@bot.message_handler(commands=["get_last_dz"])
+@bot.message_handler(commands=[cmd.get_last_dz()])
 def get_last_dz(message: Message, person: Student | None = None):
     if person is None:
         person = init_person(message)
@@ -553,7 +571,7 @@ class Sender(ABC):
 
         self.counter_dz_for_student = requests.count_dz_for_student(self.student.user_id)
         msg = bot.send_message(self.person.user_id, text=f"Введите номер дз, которое хотите получить."
-                                                    f"Всего домашних работ: {self.counter_dz_for_student}")
+                                                    f"Всего домашних работ: {self.counter_dz_for_student}", reply_markup=ReplyKeyboardRemove())
 
         bot.register_next_step_handler(msg, self.get_number)
 
@@ -581,7 +599,7 @@ class Sender_answer(Sender):
     def send(self):
         answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id).items())))
 
-        msg = bot.send_message(self.person.user_id, text=f"Ответы для {self.student.name} по домашке dz-{self.dz_number}:\n{answers}")
+        msg = bot.send_message(self.person.user_id, text=f"Ответы для {self.student.name} по домашке dz-{self.dz_number}:\n{answers}", reply_markup=ReplyKeyboardRemove())
         navigation(msg, self.person)
 
 
@@ -589,13 +607,13 @@ class Sender_dz(Sender):
     def send(self):
         file_name = f"dz-{self.dz_number}.pdf"
         path = requests.select_path_to_file(self.dz_number, self.student.name)
-        msg = bot.send_message(self.person.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
+        msg = bot.send_message(self.person.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor), reply_markup=ReplyKeyboardRemove())
         try:
             file = open(path, "rb")
             bot.send_document(self.person.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
         except FileNotFoundError as ex:
             print(ex)
-            bot.send_message(self.person.user_id, text="Ошибка")
+            bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
         finally:
             navigation(msg, self.person)
 
@@ -662,11 +680,11 @@ class Checker_dz:
                          is_deleting=False)
         navigation(message,self.person)
 
-@bot.message_handler(commands=['get_dz_by_number'])
+@bot.message_handler(commands=[cmd.get_dz_by_number()])
 def get_dz_by_number(person: Student):
     Sender_dz(person).start()
 
-@bot.message_handler(commands=["get_manual"])
+@bot.message_handler(commands=[cmd.get_manual()])
 def get_manual(message: Message):
     bot.send_message(message.chat.id, text="Ответы в одну строку через пробел. Количество ответов обязательно должно совпадать с количеством заданий в условии!"
                                            "Если в одном из заданий ответ состоит из двух или более слов, "
