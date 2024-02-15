@@ -698,4 +698,4 @@ def prompt_in_case_of_incorrect_input(message):
     bot.send_message(message.chat.id, text="Некорректный ввод. Нажмите на: /start")
 
 if __name__ == '__main__':
-    bot.polling()
+    bot.infinity_polling(True)
