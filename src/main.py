@@ -46,11 +46,6 @@ class Deleting_telebot(tb.TeleBot):
         time.sleep(int(TelebotProperties().get_message_delay()))
         self.delete_message(message.chat.id, message.id)
 
-    def register_next_step_handler(self, *args, **kwargs):
-
-        super().register_next_step_handler(*args, **kwargs)
-        pass
-
 bot = Deleting_telebot(token=TelebotProperties().get_token())
 cmd = CommandsProperties()
 
