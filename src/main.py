@@ -448,7 +448,8 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        Sender_dz(person=self.student, dz_number=requests.select_last_dz_id(self.student.user_id)).start()
+        self.sendler = Sender_dz(person=self.person, student=self.student, dz_number=requests.select_last_dz_id(self.student.user_id))
+        self.sendler.start()
         bot.register_next_step_handler(msg, self.define_answers)
 
     def define_file(self, message: Message):
@@ -467,7 +468,8 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        Sender_dz(person=self.student, dz_number=requests.select_last_dz_id(self.student.user_id)).start()
+        self.sendler = Sender_dz(person=self.person, student=self.student, dz_number=requests.select_last_dz_id(self.student.user_id))
+        self.sendler.start()
         bot.register_next_step_handler(msg, self.define_answers)
 
     def define_answers(self, message: Message):
@@ -481,7 +483,21 @@ class Downloader_task:
 
         msg = bot.send_message(self.person.user_id,
                                text=f"Ответы в количестве {number_task - 1} загружены. При обнаружении ошибки использовать команду: /mistake")
-        navigation(msg, self.person)
+
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        button = KeyboardButton(text="Нет")
+        keyboard.add(button)
+        msg = bot.send_message(self.person.user_id, text="Хотите оставить комментарий для дз? Просто начните его вводить или нажмите: 'Нет' ", reply_markup=keyboard)
+        bot.register_next_step_handler(msg, self.define_comment)
+
+    def define_comment(self, message: Message):
+        if message.text == "Нет":
+            self.comment = ""
+        else:
+            self.comment = message.text
+        msg = bot.edit_message_text(chat_id=self.student.user_id, message_id=self.sendler.comment.message_id, text=self.comment)
+        navigation(message, self.person)
+
 
 
 @bot.message_handler(func=permission_to_receive_photo.get_permission, content_types=['photo'])
@@ -602,15 +618,13 @@ class Sender_dz(Sender):
     def send(self):
         file_name = f"dz-{self.dz_number}.pdf"
         path = requests.select_path_to_file(self.dz_number, self.student.name)
-        msg = bot.send_message(self.person.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor), reply_markup=ReplyKeyboardRemove())
+        self.comment = bot.send_message(self.student.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
         try:
             file = open(path, "rb")
-            bot.send_document(self.person.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
+            bot.send_document(self.student.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
         except FileNotFoundError as ex:
             print(ex)
             bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
-        finally:
-            navigation(msg, self.person)
 
 
 class Checker_dz:
