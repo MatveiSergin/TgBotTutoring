@@ -49,6 +49,13 @@ class Deleting_telebot(tb.TeleBot):
         time.sleep(int(TelebotProperties().get_message_delay()))
         self.delete_message(message.chat.id, message.id)
 
+    def add_callback(self, callback: Callback_data):
+        self.callback_list.append(callback)
+
+    def get_callback(self, index: int):
+        if index < len(self.callback_list):
+            return self.callback_list.pop(index)
+
 bot = Deleting_telebot(token=TelebotProperties().get_token())
 cmd = CommandsProperties()
 
@@ -477,41 +484,35 @@ class Downloader_task:
     def define_answers(self, message: Message):
         answers = list(map(lambda x: x.lower(), message.text.split()))
         dz_id = requests.select_last_dz_id(self.student.user_id)
-        number_task = 1
+        self.number_task = 0
 
         for answer in answers:
-            requests.add_answer_for_dz(dz_id, self.student.user_id, number_task, answer)
-            number_task += 1
+            self.number_task += 1
+            requests.add_answer_for_dz(dz_id, self.student.user_id, self.number_task, answer)
 
-        msg = bot.send_message(self.person.user_id,
-                               text=f"Ответы в количестве {number_task - 1} загружены. При обнаружении ошибки использовать команду: /mistake")
+        keyboard = InlineKeyboardMarkup()
 
-        keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        button = KeyboardButton(text="Нет")
-        keyboard.add(button)
-        msg = bot.send_message(self.person.user_id, text="Хотите оставить комментарий для дз? Просто начните его вводить или нажмите: 'Нет' ", reply_markup=keyboard)
+        callback_data_comment = Callback_data("add_comment")
+        callback_data_comment.add_items(
+            ('person_id', self.person.user_id),
+            ('student_id', self.student.user_id),
+            ('message_id', self.sendler.comment.message_id)
+        )
+        bot.add_callback(callback_data_comment)
+        button1 = InlineKeyboardButton(text="Добавить комментарий", callback_data=str(bot.callback_list.index(callback_data_comment)))
 
-        bot.register_next_step_handler(msg, self.define_comment)
+        callback_data_add_file = Callback_data('add_additional_files')
+        callback_data_add_file.add_items(
+            ('person_sendler_id', self.person.user_id),
+            ('student_id', self.student.user_id),
+            ('student_name', self.student.name),
+            ('dz_number', self.sendler.dz_number),
+        )
+        bot.add_callback(callback_data_add_file)
+        button2 = InlineKeyboardButton(text="Добавить доп. файлы", callback_data=str(bot.callback_list.index(callback_data_add_file)))
 
-    def define_comment(self, message: Message):
-        if message.text == "Нет":
-            self.comment = ""
-        else:
-            self.comment = message.text
-        msg = bot.edit_message_text(chat_id=self.student.user_id, message_id=self.sendler.comment.message_id, text=f"Домашняя работа\n{self.comment}")
-        test_kb = InlineKeyboardMarkup()
-        callback_data = Callback_data('add_additional_files')
-        callback_data.add_items(
-           ('person_sendler_id', self.person.user_id),
-                ('student_id', self.student.user_id),
-                ('student_name', self.student.name),
-                ('dz_number', self.sendler.dz_number),
-                )
-        bot.callback_list.append(callback_data)
-        b1 = InlineKeyboardButton(text="Доп файлы?", callback_data=str(bot.callback_list.index(callback_data)))
-        test_kb.add(b1)
-        bot.send_message(self.person.user_id, text="Нужно?", reply_markup=test_kb)
-        navigation(message, self.person)
+        keyboard.add(button1, button2)
+        msg = bot.send_message(self.person.user_id, text=f"<b><i>МЕНЮ ДЗ</i></b>\nУченик: {self.student.name}\nНомер дз: {self.sendler.dz_number}\nКоличество заданий: {self.number_task}\n\n<i>При обнаружении ошибки: /mistake</i>", parse_mode="HTML", reply_markup=keyboard)
 
 
 
@@ -719,7 +720,7 @@ def get_manual(message: Message):
 
 @bot.callback_query_handler(func=lambda callback: int(callback.data) < len(bot.callback_list) and bot.callback_list[int(callback.data)].name == 'add_additional_files')
 def define_additional_files(callback):
-    callback_data = bot.callback_list[int(callback.data)]
+    callback_data = bot.get_callback(int(callback.data))
     msg = bot.send_message(callback_data.get_value('person_sendler_id'), text="Отправьте доп файлы одним zip-архивом")
     bot.register_next_step_handler(msg, add_addtional_files, callback_data)
 
@@ -735,6 +736,20 @@ def add_addtional_files(message: Message, callback_data):
     requests.add_additional_files(callback_data.get_value('dz_number'), callback_data.get_value('student_id'), repr(file))
 
     bot.send_document(chat_id=callback_data.get_value('student_id'), document=open(repr(file), 'rb'), visible_file_name=f'Дополнительные файлы для dz-{callback_data.get_value("dz_number")}.zip', is_deleting=False)
+
+
+@bot.callback_query_handler(func=lambda callback: int(callback.data) < len(bot.callback_list) and bot.callback_list[int(callback.data)].name == 'add_comment')
+def define_comment(callback):
+    callback_data = bot.get_callback(int(callback.data))
+    msg = bot.send_message(chat_id=callback_data.get_value('person_id'), text="Вводите комментарий")
+    bot.register_next_step_handler(msg, add_comment, callback_data)
+
+def add_comment(message: Message, callback_data):
+    comment = message.text
+    if comment:
+        msg = bot.edit_message_text(chat_id=callback_data.get_value('student_id'), message_id=callback_data.get_value('message_id'), text=f"Домашняя работа\n{comment}")
+        bot.send_message(chat_id=callback_data.get_value('person_id'), text="Комментарий успешно добавлен")
+
 
 @bot.message_handler(func=lambda x: True)
 def prompt_in_case_of_incorrect_input(message):
