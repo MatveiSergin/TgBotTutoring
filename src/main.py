@@ -322,7 +322,7 @@ class Navigator_for_mistakes:
 def get_dz_for_tutor(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
-    Sender_dz(person).start()
+    Sender_dz(person=person, recipient=person).start()
 
 
 @bot.message_handler(commands=[cmd.get_answers_for_tutor()])
@@ -335,7 +335,7 @@ def get_answers_for_tutor(message: Message, person: Tutor | None = None):
         navigation(message, person)
         return
 
-    Sender_answer(person).start()
+    Sender_answer(person=person, recipient=person).start()
 
 
 @bot.message_handler(commands=[cmd.get_students_list()])
@@ -448,7 +448,7 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        self.sendler = Sender_dz(person=self.person, student=self.student, dz_number=requests.select_last_dz_id(self.student.user_id))
+        self.sendler = Sender_dz(person=self.person, student=self.student, recipient=self.student,  dz_number=requests.select_last_dz_id(self.student.user_id))
         self.sendler.start()
         bot.register_next_step_handler(msg, self.define_answers)
 
@@ -468,7 +468,7 @@ class Downloader_task:
                                text='Супер! Домашняя работа загрузилась и уже доставлена ученику! Пора загрузить ответы. \n\n Ответы вводятся <b>одной</b> строкой, разделяются <b>одним</b> пробелом. Количество ответов должно совпадать с количеством заданий!',
                                parse_mode='HTML')
 
-        self.sendler = Sender_dz(person=self.person, student=self.student, dz_number=requests.select_last_dz_id(self.student.user_id))
+        self.sendler = Sender_dz(person=self.person, student=self.student,recipient=self.student, dz_number=requests.select_last_dz_id(self.student.user_id))
         self.sendler.start()
         bot.register_next_step_handler(msg, self.define_answers)
 
@@ -495,7 +495,7 @@ class Downloader_task:
             self.comment = ""
         else:
             self.comment = message.text
-        msg = bot.edit_message_text(chat_id=self.student.user_id, message_id=self.sendler.comment.message_id, text=self.comment)
+        msg = bot.edit_message_text(chat_id=self.student.user_id, message_id=self.sendler.comment.message_id, text=f"Домашняя работа\n{self.comment}")
         navigation(message, self.person)
 
 
@@ -517,16 +517,16 @@ def get_last_dz(message: Message, person: Student | None = None):
         person = init_person(message)
     number = requests.select_last_dz_id(person.user_id)
     if number:
-        Sender_dz(person=person, dz_number=number).start()
+        Sender_dz(person=person, recipient=person,  dz_number=number).start()
     else:
         bot.send_message(person.user_id, text="У вас еще нет домашек")
         navigation(message, person)
 
 
 class Sender(ABC):
-    def __init__(self, person, student: Student=None, dz_number:int =None):
+    def __init__(self, person, recipient: Tutor | Student, student: Student=None, dz_number:int =None):
         self.person = person
-
+        self.recipient = recipient
         if dz_number is not None:
             self.dz_number = dz_number
 
@@ -618,10 +618,10 @@ class Sender_dz(Sender):
     def send(self):
         file_name = f"dz-{self.dz_number}.pdf"
         path = requests.select_path_to_file(self.dz_number, self.student.name)
-        self.comment = bot.send_message(self.student.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
+        self.comment = bot.send_message(self.recipient.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
         try:
             file = open(path, "rb")
-            bot.send_document(self.student.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
+            bot.send_document(self.recipient.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
         except FileNotFoundError as ex:
             print(ex)
             bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
@@ -691,7 +691,7 @@ class Checker_dz:
 
 @bot.message_handler(commands=[cmd.get_dz_by_number()])
 def get_dz_by_number(person: Student):
-    Sender_dz(person).start()
+    Sender_dz(person=person, recipient=person).start()
 
 @bot.message_handler(commands=[cmd.get_manual()])
 def get_manual(message: Message):
