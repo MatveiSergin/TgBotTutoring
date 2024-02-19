@@ -618,10 +618,10 @@ class Sender_dz(Sender):
     def send(self):
         file_name = f"dz-{self.dz_number}.pdf"
         path = requests.select_path_to_file(self.dz_number, self.student.name)
-        self.comment = bot.send_message(self.recipient.user_id, text="Домашнее задание:", is_deleting=isinstance(self.person, Tutor))
+        self.comment = bot.send_message(self.recipient.user_id, text="Домашнее задание:", is_deleting=isinstance(self.recipient, Tutor))
         try:
             file = open(path, "rb")
-            bot.send_document(self.recipient.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.person, Tutor))
+            bot.send_document(self.recipient.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.recipient, Tutor))
         except FileNotFoundError as ex:
             print(ex)
             bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
