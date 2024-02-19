@@ -98,3 +98,10 @@ UPDATE answers
 SET answer = '{0}'
 WHERE task_number = {1} AND dz_id  = {2} AND student_id  = {3};
 """
+
+ADD_NEW_ADDITIONAL_FILES = """
+INSERT INTO additional_files 
+(dz_id, student_id, path_to_file)
+VALUES
+({0}, {1}, '{2}');
+"""

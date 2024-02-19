@@ -1,5 +1,5 @@
-from config.properties import CommandsProperties
+a = {12: 12}
 
-cmd = CommandsProperties()
+a |= dict(tuple((13, 14)))
 
-print(cmd.all_commands())
+print(a)

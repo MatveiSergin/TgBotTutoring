@@ -9,11 +9,11 @@ import docx2pdf as dp
 from datetime import datetime
 import subprocess
 import sys
-
+import json
 
 # noinspection PyPackageRequirements
 class File_faсtory:
-    available_formats = ('doc', 'docx', 'pdf')
+    available_formats = ('doc', 'docx', 'pdf', 'zip')
 
     def __init__(self, file: bytes | FPDF, extension: str):
         self._file = file
@@ -121,5 +121,38 @@ class Jpg_file:
 
     def __del__(self):
         os.remove(repr(self))
+
+
+class Callback_data:
+
+    def __init__(self, name: str):
+        self._items = {}
+        self.name = name
+
+    def add_value(self, key, value):
+        if key not in self._items:
+            self._items[key] = value
+        else:
+            raise Exception("key in dict yet")
+    def add_item(self, item):
+        if item[0] not in self._items:
+            self._items |= dict((item, ))
+
+    def add_items(self, *args: tuple):
+        if not all(isinstance(item, tuple) for item in args):
+            raise TypeError("args must be tuple")
+            return
+        for item in args:
+            self.add_item(item)
+
+    def get_value(self, key: str):
+        if key in self._items:
+            return self._items[key]
+
+    def deleting_by_key(self, key):
+        if key in self._items:
+            del self._items[key]
+
+
 
 

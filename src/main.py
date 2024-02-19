@@ -1,19 +1,22 @@
 import time
+import types
 from abc import ABC, abstractmethod
 import telebot as tb
 import os
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardRemove
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from config.properties import TelebotProperties, CommandsProperties
-from files import File_faсtory, HomeworkDocument, Jpg_file
+from files import File_faсtory, HomeworkDocument, Jpg_file, Callback_data
 from roles import Student, Tutor
 from database import requests
 import threading
+import json
 
 class Deleting_telebot(tb.TeleBot):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue_menu = {}
+        self.callback_list = list()
 
     def send_message(self, *args, is_deleting: bool = True, is_menu = False, **kwargs) -> Message:
         msg = super().send_message(*args, **kwargs)
@@ -62,7 +65,6 @@ class permission_to_receive_photo:
     @classmethod
     def get_permission(cls, *args, **kwargs):
         return cls.is_allowed
-
 
 
 @bot.message_handler(commands=[cmd.get_start()])
@@ -488,6 +490,7 @@ class Downloader_task:
         button = KeyboardButton(text="Нет")
         keyboard.add(button)
         msg = bot.send_message(self.person.user_id, text="Хотите оставить комментарий для дз? Просто начните его вводить или нажмите: 'Нет' ", reply_markup=keyboard)
+
         bot.register_next_step_handler(msg, self.define_comment)
 
     def define_comment(self, message: Message):
@@ -496,6 +499,18 @@ class Downloader_task:
         else:
             self.comment = message.text
         msg = bot.edit_message_text(chat_id=self.student.user_id, message_id=self.sendler.comment.message_id, text=f"Домашняя работа\n{self.comment}")
+        test_kb = InlineKeyboardMarkup()
+        callback_data = Callback_data('add_additional_files')
+        callback_data.add_items(
+           ('person_sendler_id', self.person.user_id),
+                ('student_id', self.student.user_id),
+                ('student_name', self.student.name),
+                ('dz_number', self.sendler.dz_number),
+                )
+        bot.callback_list.append(callback_data)
+        b1 = InlineKeyboardButton(text="Доп файлы?", callback_data=str(bot.callback_list.index(callback_data)))
+        test_kb.add(b1)
+        bot.send_message(self.person.user_id, text="Нужно?", reply_markup=test_kb)
         navigation(message, self.person)
 
 
@@ -608,7 +623,7 @@ class Sender(ABC):
 class Sender_answer(Sender):
 
     def send(self):
-        answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id).items())))
+        answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id)._items())))
 
         msg = bot.send_message(self.person.user_id, text=f"Ответы для {self.student.name} по домашке dz-{self.dz_number}:\n{answers}", reply_markup=ReplyKeyboardRemove())
         navigation(msg, self.person)
@@ -616,12 +631,12 @@ class Sender_answer(Sender):
 
 class Sender_dz(Sender):
     def send(self):
-        file_name = f"dz-{self.dz_number}.pdf"
+        self.file_name = f"dz-{self.dz_number}.pdf"
         path = requests.select_path_to_file(self.dz_number, self.student.name)
         self.comment = bot.send_message(self.recipient.user_id, text="Домашнее задание:", is_deleting=isinstance(self.recipient, Tutor))
         try:
             file = open(path, "rb")
-            bot.send_document(self.recipient.user_id, document=file, visible_file_name=file_name, is_deleting=isinstance(self.recipient, Tutor))
+            bot.send_document(self.recipient.user_id, document=file, visible_file_name=self.file_name, is_deleting=isinstance(self.recipient, Tutor))
         except FileNotFoundError as ex:
             print(ex)
             bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
@@ -701,6 +716,25 @@ def get_manual(message: Message):
                                            "например если это математический график или программа на языке программимрования, то ставьте вместо ответа: <b>—</b>.\n"
                                            "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва — — —</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
     navigation(message)
+
+@bot.callback_query_handler(func=lambda callback: int(callback.data) < len(bot.callback_list) and bot.callback_list[int(callback.data)].name == 'add_additional_files')
+def define_additional_files(callback):
+    callback_data = bot.callback_list[int(callback.data)]
+    msg = bot.send_message(callback_data.get_value('person_sendler_id'), text="Отправьте доп файлы одним zip-архивом")
+    bot.register_next_step_handler(msg, add_addtional_files, callback_data)
+
+def add_addtional_files(message: Message, callback_data):
+    try:
+        file_info = bot.get_file(message.document.file_id)
+        file = File_faсtory(bot.download_file(file_info.file_path), file_info.file_path.split('.')[-1])
+    except Exception as ex:
+        print(ex)
+        msg = bot.send_message(callback_data.get_value('person_sendler_id'), text="Ошибка при добавлении файла")
+        return
+    file.name = requests.select_path_to_file(callback_data.get_value('dz_number'), callback_data.get_value('student_name')).split("/")[-1][:-4]
+    requests.add_additional_files(callback_data.get_value('dz_number'), callback_data.get_value('student_id'), repr(file))
+
+    bot.send_document(chat_id=callback_data.get_value('student_id'), document=open(repr(file), 'rb'), visible_file_name=f'Дополнительные файлы для dz-{callback_data.get_value("dz_number")}.zip', is_deleting=False)
 
 @bot.message_handler(func=lambda x: True)
 def prompt_in_case_of_incorrect_input(message):

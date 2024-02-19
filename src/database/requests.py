@@ -114,3 +114,6 @@ def select_has_answer_in_dz(dz_id: int, student_id: int):
 def update_answer_in_answers(dz_id: int, student_id: int, answers: list[str]):
     for task_number in range(1, len(answers) + 1):
         Database().execute(UPDATE_ANSWER_IN_ANSWERS.format(answers[task_number - 1], task_number, dz_id, student_id))
+
+def add_additional_files(dz_id: int, student_id: int, path_to_file: str):
+    Database().execute(ADD_NEW_ADDITIONAL_FILES.format(dz_id, student_id, path_to_file))
