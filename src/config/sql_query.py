@@ -51,7 +51,7 @@ SELECT COUNT(id) FROM dz
 WHERE student_id = {0};
 """
 
-SELECT_DZ = """
+SELECT_PATH_FOR_DZ = """
 SELECT path_to_file FROM dz
 WHERE id = {0} AND student_id = {1};
 """
@@ -104,4 +104,33 @@ INSERT INTO additional_files
 (dz_id, student_id, path_to_file)
 VALUES
 ({0}, {1}, '{2}');
+"""
+
+ADD_MESSAGE_ID_FOR_DZ = """
+UPDATE dz
+SET message_id = {0}
+WHERE id = {1} AND student_id = {2};
+"""
+
+SELECT_DZ = """
+SELECT * FROM dz
+WHERE id = {0} AND student_id = {1};
+"""
+
+UPDATE_COUNTER_DZ = """
+UPDATE dz
+SET counter_dz = {0}
+WHERE id = {1} AND student_id = {2};
+"""
+
+UPDATE_REMARK_FOR_DZ = """
+UPDATE dz
+SET remark = '{0}'
+WHERE id = {1} AND student_id = {2};
+"""
+
+UPDATE_HAS_ADDITIONAL_FILE = """
+UPDATE dz
+SET has_additional_file = true
+WHERE id = {0} AND student_id = {1};
 """

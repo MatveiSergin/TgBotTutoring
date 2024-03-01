@@ -16,7 +16,7 @@ class Deleting_telebot(tb.TeleBot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue_menu = {}
-        self.callback_list = list()
+        self.callback_list = dict()
 
     def send_message(self, *args, is_deleting: bool = True, is_menu = False, **kwargs) -> Message:
         msg = super().send_message(*args, **kwargs)
@@ -50,11 +50,11 @@ class Deleting_telebot(tb.TeleBot):
         self.delete_message(message.chat.id, message.id)
 
     def add_callback(self, callback: Callback_data):
-        self.callback_list.append(callback)
+        self.callback_list[callback.index] = callback
 
     def get_callback(self, index: int):
-        if index < len(self.callback_list):
-            return self.callback_list.pop(index)
+        if index in self.callback_list:
+            return self.callback_list[index]
 
 bot = Deleting_telebot(token=TelebotProperties().get_token())
 cmd = CommandsProperties()
@@ -448,6 +448,7 @@ class Downloader_task:
                 jpg_files.append(Jpg_file(bot.download_file(path)))
         else:
             bot.send_message(self.person.user_id, text="Необходимо прикрипить изображения")
+            navigation(message)
 
         homework = HomeworkDocument(*list(map(repr, jpg_files)))
         file = homework.get_file()
@@ -489,17 +490,19 @@ class Downloader_task:
         for answer in answers:
             self.number_task += 1
             requests.add_answer_for_dz(dz_id, self.student.user_id, self.number_task, answer)
-
+        requests.update_counter_dz(self.number_task, dz_id, self.student.user_id)
         keyboard = InlineKeyboardMarkup()
 
         callback_data_comment = Callback_data("add_comment")
         callback_data_comment.add_items(
             ('person_id', self.person.user_id),
             ('student_id', self.student.user_id),
-            ('message_id', self.sendler.comment.message_id)
+            ('message_id', self.sendler.comment.message_id),
+            ('dz_number', self.sendler.dz_number),
+            ('tutor_id', self.person.user_id),
         )
         bot.add_callback(callback_data_comment)
-        button1 = InlineKeyboardButton(text="Добавить комментарий", callback_data=str(bot.callback_list.index(callback_data_comment)))
+        button1 = InlineKeyboardButton(text="Добавить комментарий", callback_data=str(callback_data_comment.index))
 
         callback_data_add_file = Callback_data('add_additional_files')
         callback_data_add_file.add_items(
@@ -507,15 +510,23 @@ class Downloader_task:
             ('student_id', self.student.user_id),
             ('student_name', self.student.name),
             ('dz_number', self.sendler.dz_number),
+            ('tutor_id', self.person.user_id),
         )
         bot.add_callback(callback_data_add_file)
-        button2 = InlineKeyboardButton(text="Добавить доп. файлы", callback_data=str(bot.callback_list.index(callback_data_add_file)))
+        button2 = InlineKeyboardButton(text="Добавить доп. файлы", callback_data=str(callback_data_add_file.index))
 
         keyboard.add(button1, button2)
-        msg = bot.send_message(self.person.user_id, text=f"<b><i>МЕНЮ ДЗ</i></b>\nУченик: {self.student.name}\nНомер дз: {self.sendler.dz_number}\nКоличество заданий: {self.number_task}\n\n<i>При обнаружении ошибки: /mistake</i>", parse_mode="HTML", reply_markup=keyboard)
 
+        callback_data_comment.add_items(('keyboard', keyboard))
+        callback_data_add_file.add_items(('keyboard', keyboard))
 
+        msg = bot.send_message(self.person.user_id, text=factory_for_menu_dz(self.sendler.dz_number, self.student.user_id), parse_mode="HTML", reply_markup=keyboard, is_deleting=False)
+        requests.update_message_id_for_dz(msg.id, self.sendler.dz_number, self.student.user_id)
 
+def factory_for_menu_dz(dz_number:int, student_id:int):
+    dz_info = requests.select_dz(dz_number, student_id)
+    text = f"<b><i>МЕНЮ ДЗ</i></b>\nУченик: {Student(int(dz_info['student_id'])).name}\nНомер дз: {dz_info['id']}\nКоличество заданий: {dz_info['counter_dz']}\nДоп файлы: {'✅' if dz_info['has_additional_file'] else '❌'}\nКомментарий: {dz_info['remark']}\n\nТег: #{Student(int(dz_info['student_id'])).name.split()[0]}_{dz_info['counter_dz'] }\n<i>При обнаружении ошибки: /mistake</i>"
+    return text
 @bot.message_handler(func=permission_to_receive_photo.get_permission, content_types=['photo'])
 def download_photos_for_dz(message: Message):
     dt = Downloader_task.instance
@@ -718,7 +729,7 @@ def get_manual(message: Message):
                                            "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва — — —</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
     navigation(message)
 
-@bot.callback_query_handler(func=lambda callback: int(callback.data) < len(bot.callback_list) and bot.callback_list[int(callback.data)].name == 'add_additional_files')
+@bot.callback_query_handler(func=lambda callback: int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == 'add_additional_files')
 def define_additional_files(callback):
     callback_data = bot.get_callback(int(callback.data))
     msg = bot.send_message(callback_data.get_value('person_sendler_id'), text="Отправьте доп файлы одним zip-архивом")
@@ -734,11 +745,19 @@ def add_addtional_files(message: Message, callback_data):
         return
     file.name = requests.select_path_to_file(callback_data.get_value('dz_number'), callback_data.get_value('student_name')).split("/")[-1][:-4]
     requests.add_additional_files(callback_data.get_value('dz_number'), callback_data.get_value('student_id'), repr(file))
+    dz_info = requests.select_dz(callback_data.get_value('dz_number'), callback_data.get_value('student_id'))
+
+    msg = bot.edit_message_text(
+        chat_id=callback_data.get_value('tutor_id'),
+        message_id=int(dz_info['message_id']),
+        text=factory_for_menu_dz(callback_data.get_value('dz_number'), callback_data.get_value('student_id')),
+        parse_mode='HTML',
+        reply_markup=callback_data.get_value('keyboard'))
 
     bot.send_document(chat_id=callback_data.get_value('student_id'), document=open(repr(file), 'rb'), visible_file_name=f'Дополнительные файлы для dz-{callback_data.get_value("dz_number")}.zip', is_deleting=False)
 
 
-@bot.callback_query_handler(func=lambda callback: int(callback.data) < len(bot.callback_list) and bot.callback_list[int(callback.data)].name == 'add_comment')
+@bot.callback_query_handler(func=lambda callback: int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == 'add_comment')
 def define_comment(callback):
     callback_data = bot.get_callback(int(callback.data))
     msg = bot.send_message(chat_id=callback_data.get_value('person_id'), text="Вводите комментарий")
@@ -748,6 +767,15 @@ def add_comment(message: Message, callback_data):
     comment = message.text
     if comment:
         msg = bot.edit_message_text(chat_id=callback_data.get_value('student_id'), message_id=callback_data.get_value('message_id'), text=f"Домашняя работа\n{comment}")
+        requests.update_remark_for_dz(comment, callback_data.get_value('dz_number'), callback_data.get_value('student_id'))
+        dz_info = requests.select_dz(callback_data.get_value('dz_number'), callback_data.get_value('student_id'))
+
+        msg = bot.edit_message_text(
+            chat_id=callback_data.get_value('tutor_id'),
+            message_id=int(dz_info['message_id']),
+            text=factory_for_menu_dz(callback_data.get_value('dz_number'), callback_data.get_value('student_id')),
+            parse_mode='HTML',
+            reply_markup=callback_data.get_value('keyboard'))
         bot.send_message(chat_id=callback_data.get_value('person_id'), text="Комментарий успешно добавлен")
 
 

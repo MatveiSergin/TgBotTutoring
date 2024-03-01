@@ -128,6 +128,7 @@ class Callback_data:
     def __init__(self, name: str):
         self._items = {}
         self.name = name
+        self.index = randint(0, 20000000)
 
     def add_value(self, key, value):
         if key not in self._items:

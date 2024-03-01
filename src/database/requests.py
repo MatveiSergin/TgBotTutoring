@@ -76,8 +76,8 @@ def select_last_dz_id(student_id: int):
 def add_answer_for_dz(dz_id: int, student_id: int, task_number: int, answer: str):
     Database().execute(ADD_ANSWER_FOR_DZ.format(dz_id, student_id, task_number, answer))
 
-def select_dz_by_number(number_dz: int, student_id: int):
-    return Database().execute(SELECT_DZ.format(number_dz, student_id))
+def select_path_for_dz_by_number(number_dz: int, student_id: int):
+    return Database().execute(SELECT_PATH_FOR_DZ.format(number_dz, student_id))
 
 def count_answers_for_dz(dz_id: int, student_id: int):
     return Database().execute(COUNT_ANSWERS_FOR_DZ.format(dz_id, student_id))[0]['COUNT(task_number)']
@@ -117,3 +117,16 @@ def update_answer_in_answers(dz_id: int, student_id: int, answers: list[str]):
 
 def add_additional_files(dz_id: int, student_id: int, path_to_file: str):
     Database().execute(ADD_NEW_ADDITIONAL_FILES.format(dz_id, student_id, path_to_file))
+    Database().execute(UPDATE_HAS_ADDITIONAL_FILE.format(dz_id, student_id))
+
+def update_message_id_for_dz(message_id:int, dz_id: int, student_id: int):
+    Database().execute(ADD_MESSAGE_ID_FOR_DZ.format(message_id, dz_id, student_id))
+
+def select_dz(dz_id: int, student_id: int):
+    return Database().execute(SELECT_DZ.format(dz_id, student_id))[0]
+
+def update_counter_dz(counter_dz:int, dz_id: int, student_id: int):
+    Database().execute(UPDATE_COUNTER_DZ.format(counter_dz, dz_id, student_id))
+
+def update_remark_for_dz(remark: str, dz_id: int, student_id: int):
+    Database().execute(UPDATE_REMARK_FOR_DZ.format(remark, dz_id, student_id))
