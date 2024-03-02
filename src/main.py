@@ -121,8 +121,11 @@ def registration(message: Message, person: Student, has_make_register=None):
                 bot.register_next_step_handler(msg, registration, person, False)
 
             student_name = f"{fio[0]} {fio[1][0]}".title()
-            person.register(message.from_user.username, tutor, student_name)
-            registration(message, person, True)
+            if person.register(message.from_user.username, tutor, student_name):
+                registration(message, person, True)
+            else:
+                bot.send_message(chat_id=person.user_id, text="Ошибка при регистрации")
+                bot.register_next_step_handler(msg, registration, person, False)
     elif has_make_register:
         bot.send_message(person.user_id,
                          text="Вы успешно зарегистрированы!")

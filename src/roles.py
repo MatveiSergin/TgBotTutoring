@@ -14,17 +14,20 @@ class Student():
         students = select_person(self.user_id, self.role)
         return bool(students)
 
-    def register(self, user_name: str, tutor_name: str, name: str):
+    def register(self, user_name: str, tutor_name: str, name: str) -> bool:
         self.user_name = user_name
         self.name = name
         try:
             self._tutor_id = next(filter(lambda x: x["name"][:-2].lower() == tutor_name, select_all_persons("tutor")))["tutor_id"]
         except StopIteration:
-            print("нету учителя епт")
+            print("Tutor not found")
+            return False
         try:
             add_new_student(self.user_id, self._tutor_id, self.user_name, self.name)
         except Exception as ex:
             print("add_new_person dont add new person", ex)
+            return False
+        return True
 
     def get_tutor(self):
         data = select_person(self._tutor_id, 'tutor')

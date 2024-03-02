@@ -1,10 +1,10 @@
-from configparser import SafeConfigParser
+from configparser import RawConfigParser
 import os
 class DBProperties:
     _section = 'database'
     def __init__(self):
         self.file_name = os.path.abspath('../src/config/configDB.ini')
-        self.cfgParser = SafeConfigParser()
+        self.cfgParser = RawConfigParser()
         self.cfgParser.read(self.file_name)
     def get_host(self):
         return self.cfgParser.get(self._section, 'HOST')

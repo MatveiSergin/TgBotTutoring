@@ -1,4 +1,4 @@
-from configparser import SafeConfigParser
+from configparser import RawConfigParser
 import os
 TOKEN = '6663442009:AAG_5Z2PmhvtGjR6H-H-VibOlsVcI2lT8ZQ'
 
@@ -16,7 +16,7 @@ class TelebotProperties(metaclass=Singleton):
     def __init__(self):
         if self.cfgParser is None:
             file_name = os.path.abspath('../src/config/config_telebot.ini')
-            self.cfgParser = SafeConfigParser()
+            self.cfgParser = RawConfigParser()
             self.cfgParser.read(file_name)
     def get_token(self):
         return self.cfgParser.get(self._section, 'token')
@@ -34,7 +34,7 @@ class CommandsProperties(metaclass=Singleton):
     def __init__(self):
         if self.cfgParser is None:
             file_name = os.path.abspath('../src/config/config_telebot.ini')
-            self.cfgParser = SafeConfigParser()
+            self.cfgParser = RawConfigParser()
             self.cfgParser.read(file_name)
 
     def get_start(self):
@@ -74,7 +74,7 @@ class DBProperties(metaclass=Singleton):
     def __init__(self):
         if self.cfgParser is None:
             self.file_name = os.path.abspath('../src/config/configDB.ini')
-            self.cfgParser = SafeConfigParser()
+            self.cfgParser = RawConfigParser()
             self.cfgParser.read(self.file_name)
 
     def get_host(self):
