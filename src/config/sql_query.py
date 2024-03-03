@@ -134,3 +134,13 @@ UPDATE dz
 SET has_additional_file = true
 WHERE id = {0} AND student_id = {1};
 """
+
+SELECT_CUR_ANSWER = """
+SELECT cur_answer FROM dz
+WHERE id = {0} AND student_id = {1};
+"""
+
+SELECT_STUDENT_ANSWER = """
+SELECT answer FROM dz
+WHERE id = {0} AND student_id = {1};
+"""

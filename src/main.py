@@ -56,6 +56,9 @@ class Deleting_telebot(tb.TeleBot):
         if index in self.callback_list:
             return self.callback_list[index]
 
+    @staticmethod
+    def check_callback_data(callback, callback_name):
+        return int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == callback_name
 bot = Deleting_telebot(token=TelebotProperties().get_token())
 cmd = CommandsProperties()
 
@@ -503,6 +506,7 @@ class Downloader_task:
             ('message_id', self.sendler.comment.message_id),
             ('dz_number', self.sendler.dz_number),
             ('tutor_id', self.person.user_id),
+            ('keyboard', keyboard),
         )
         bot.add_callback(callback_data_comment)
         button1 = InlineKeyboardButton(text="Добавить комментарий", callback_data=str(callback_data_comment.index))
@@ -514,21 +518,45 @@ class Downloader_task:
             ('student_name', self.student.name),
             ('dz_number', self.sendler.dz_number),
             ('tutor_id', self.person.user_id),
+            ('keyboard', keyboard),
         )
         bot.add_callback(callback_data_add_file)
         button2 = InlineKeyboardButton(text="Добавить доп. файлы", callback_data=str(callback_data_add_file.index))
 
-        keyboard.add(button1, button2)
+        callback_data_file = Callback_data('dz_file')
+        callback_data_file.add_items(
+            ('student_id', self.student.user_id),
+            ('dz_number', self.sendler.dz_number),
+            ('tutor_id', self.person.user_id),
+        )
+        bot.add_callback(callback_data_file)
+        button3 = InlineKeyboardButton(text="Файл с условием", callback_data=str(callback_data_file.index))
 
-        callback_data_comment.add_items(('keyboard', keyboard))
-        callback_data_add_file.add_items(('keyboard', keyboard))
+        callback_data_answers = Callback_data('dz_answer')
+        callback_data_answers.add_items(
+            ('student_id', self.student.user_id),
+            ('dz_number', self.sendler.dz_number),
+            ('tutor_id', self.person.user_id),
+        )
+        bot.add_callback(callback_data_answers)
+        button4 = InlineKeyboardButton(text="Ответы", callback_data=str(callback_data_answers.index))
 
+        callback_data_result = Callback_data('dz_result')
+        callback_data_result.add_items(
+            ('student_id', self.student.user_id),
+            ('dz_number', self.sendler.dz_number),
+            ('tutor_id', self.person.user_id),
+            ('student_name', self.student.name),
+        )
+        bot.add_callback(callback_data_result)
+        button5 = InlineKeyboardButton(text="Результат", callback_data=str(callback_data_result.index))
+        keyboard.add(button1, button2, button3, button4, button5)
         msg = bot.send_message(self.person.user_id, text=factory_for_menu_dz(self.sendler.dz_number, self.student.user_id), parse_mode="HTML", reply_markup=keyboard, is_deleting=False)
         requests.update_message_id_for_dz(msg.id, self.sendler.dz_number, self.student.user_id)
 
 def factory_for_menu_dz(dz_number:int, student_id:int):
     dz_info = requests.select_dz(dz_number, student_id)
-    text = f"<b><i>МЕНЮ ДЗ</i></b>\nУченик: {Student(int(dz_info['student_id'])).name}\nНомер дз: {dz_info['id']}\nКоличество заданий: {dz_info['counter_dz']}\nДоп файлы: {'✅' if dz_info['has_additional_file'] else '❌'}\nКомментарий: {dz_info['remark']}\n\nТег: #{Student(int(dz_info['student_id'])).name.split()[0]}_{dz_info['counter_dz'] }\n<i>При обнаружении ошибки: /mistake</i>"
+    text = f"<b><i>МЕНЮ ДЗ</i></b>\nУченик: {Student(int(dz_info['student_id'])).name}\nНомер дз: {dz_info['id']}\nКоличество заданий: {dz_info['counter_dz']}\nДоп файлы: {'✅' if dz_info['has_additional_file'] else '❌'}\nКомментарий: {dz_info['remark']}\n\nТег: #{Student(int(dz_info['student_id'])).name.split()[0]}_{dz_info['id'] }\n<i>При обнаружении ошибки: /mistake</i>"
     return text
 @bot.message_handler(func=permission_to_receive_photo.get_permission, content_types=['photo'])
 def download_photos_for_dz(message: Message):
@@ -638,7 +666,7 @@ class Sender(ABC):
 class Sender_answer(Sender):
 
     def send(self):
-        answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id)._items())))
+        answers = "\n".join(list(map(lambda x: ': '.join((str(x[0]), x[1])), requests.select_answers(self.dz_number, self.student.user_id).items())))
 
         msg = bot.send_message(self.person.user_id, text=f"Ответы для {self.student.name} по домашке dz-{self.dz_number}:\n{answers}", reply_markup=ReplyKeyboardRemove())
         navigation(msg, self.person)
@@ -656,9 +684,7 @@ class Sender_dz(Sender):
             print(ex)
             bot.send_message(self.person.user_id, text="Ошибка", reply_markup=ReplyKeyboardRemove())
 
-
 class Checker_dz:
-
     def __init__(self, person: Student):
         self.person = person
     def check_dz(self):
@@ -732,7 +758,7 @@ def get_manual(message: Message):
                                            "Например ответ на дз может выглядеть следующим образом:\n<b>236 12.4 город_Москва — — —</b>\nВ данном примере было предоставлено 6 ответов.", parse_mode="HTML")
     navigation(message)
 
-@bot.callback_query_handler(func=lambda callback: int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == 'add_additional_files')
+@bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'add_additional_files'))
 def define_additional_files(callback):
     callback_data = bot.get_callback(int(callback.data))
     msg = bot.send_message(callback_data.get_value('person_sendler_id'), text="Отправьте доп файлы одним zip-архивом")
@@ -759,8 +785,7 @@ def add_addtional_files(message: Message, callback_data):
 
     bot.send_document(chat_id=callback_data.get_value('student_id'), document=open(repr(file), 'rb'), visible_file_name=f'Дополнительные файлы для dz-{callback_data.get_value("dz_number")}.zip', is_deleting=False)
 
-
-@bot.callback_query_handler(func=lambda callback: int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == 'add_comment')
+@bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'add_comment'))
 def define_comment(callback):
     callback_data = bot.get_callback(int(callback.data))
     msg = bot.send_message(chat_id=callback_data.get_value('person_id'), text="Вводите комментарий")
@@ -781,6 +806,29 @@ def add_comment(message: Message, callback_data):
             reply_markup=callback_data.get_value('keyboard'))
         bot.send_message(chat_id=callback_data.get_value('person_id'), text="Комментарий успешно добавлен")
 
+@bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'dz_file'))
+def get_dz_file_by_callback(callback):
+    callback_data = bot.get_callback(int(callback.data))
+    Sender_dz(person=Tutor(callback_data.get_value('tutor_id')), recipient=Tutor(callback_data.get_value('tutor_id')), student=Student(callback_data.get_value('student_id')), dz_number=callback_data.get_value('dz_number')).start()
+
+@bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'dz_answer'))
+def get_answers_by_callback(callback):
+    callback_data = bot.get_callback(int(callback.data))
+    Sender_answer(person=Tutor(callback_data.get_value('tutor_id')), recipient=Tutor(callback_data.get_value('tutor_id')), student=Student(callback_data.get_value('student_id')), dz_number=callback_data.get_value('dz_number')).start()
+
+@bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'dz_result'))
+def get_result_by_callback(callback):
+    callback_data = bot.get_callback(int(callback.data))
+    correct_answer = requests.select_cur_answer(callback_data.get_value('dz_id'), callback_data.get_value('student_id'))
+    student_answer = requests.select_student_answer(callback_data.get_value('dz_id'), callback_data.get_value('student_id'))
+    print(student_answer)
+    return
+    result = sum(i == j for i in correct_answer for j in student_answer)
+    result_by_number = ""
+    for i in range(len(correct_answer)):
+        result += f"{i + 1}) {correct_answer[i + 1]} / {student_answer[i]}\n"
+    bot.send_message(callback_data.get_value('tutor_id'),
+                     text=f"{Student(callback_data.get_value('student_name'))} выполнил домашнюю работу: dz-{callback_data.get_value('dz_id')}. Результат: {result} из {len(correct_answer)}.\n{result_by_number}")
 
 @bot.message_handler(func=lambda x: True)
 def prompt_in_case_of_incorrect_input(message):

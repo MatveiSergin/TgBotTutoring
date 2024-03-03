@@ -1,9 +1,10 @@
 import pymysql
 import pymysql.cursors
 
-from config.properties import Singleton
-from config.sql_query import *
-from .database_property import DBProperties
+
+from src.config.properties import Singleton
+from src.config.sql_query import *
+from src.database.database_property import DBProperties
 
 class Database(metaclass=Singleton):
     connection = None
@@ -130,3 +131,9 @@ def update_counter_dz(counter_dz:int, dz_id: int, student_id: int):
 
 def update_remark_for_dz(remark: str, dz_id: int, student_id: int):
     Database().execute(UPDATE_REMARK_FOR_DZ.format(remark, dz_id, student_id))
+
+def select_cur_answer(dz_id: int, student_id: int):
+    return Database().execute(SELECT_CUR_ANSWER.format(dz_id, student_id))[0]['cur_answer']
+
+def select_student_answer(dz_id: int, student_id: int):
+    return Database().execute(SELECT_STUDENT_ANSWER.format(dz_id, student_id))[0]['answer']
