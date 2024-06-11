@@ -1,6 +1,9 @@
 from configparser import RawConfigParser
 import os
-TOKEN = '6663442009:AAG_5Z2PmhvtGjR6H-H-VibOlsVcI2lT8ZQ'
+import dotenv
+dotenv.load_dotenv()
+
+TOKEN = os.getenv('TOKEN')
 
 class Singleton(type):
     _instances = {}

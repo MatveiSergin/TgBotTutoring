@@ -6,3 +6,4 @@
 /src/files/
 src/__pycache__/
 */__pycache__/
+.env

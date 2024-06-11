@@ -137,3 +137,12 @@ def select_cur_answer(dz_id: int, student_id: int):
 
 def select_student_answer(dz_id: int, student_id: int):
     return Database().execute(SELECT_STUDENT_ANSWER.format(dz_id, student_id))[0]['answer']
+
+def select_creation_data_for_dz(student_id: int):
+    return Database().execute(SELECT_CREATION_DATA_FOR_DZ.format(student_id))[0]['creation_at']
+
+def update_nav_message_id_for_tutor(message_id: int, tutor_id: int):
+    Database().execute(UPDATE_NAV_MESSAGE_ID_FOR_TUTUR.format(message_id, tutor_id))
+
+def select_nav_message_id(tutor_id: int):
+    return Database().execute(SELECT_NAV_MESSAGE_ID.format(tutor_id))[0]['navigation_message_id']

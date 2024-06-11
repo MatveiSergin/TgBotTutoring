@@ -59,6 +59,7 @@ class Deleting_telebot(tb.TeleBot):
     @staticmethod
     def check_callback_data(callback, callback_name):
         return int(callback.data) in bot.callback_list and bot.callback_list[int(callback.data)].name == callback_name
+
 bot = Deleting_telebot(token=TelebotProperties().get_token())
 cmd = CommandsProperties()
 
@@ -357,18 +358,20 @@ def get_answers_for_tutor(message: Message, person: Tutor | None = None):
 def get_list_students(message: Message, person: Tutor | None = None):
     if person is None:
         person = init_person(message)
-    text = ""
-    for student in person.get_students():
-        text += f"{student.name}\n"
+    sorted_students_by_data = [(requests.select_creation_data_for_dz(student.user_id), student.name) for student in person.get_students()]
+    sorted_students_by_data.sort(key=lambda x: x[0], reverse=True)
+    text = "<b>СПИСОК СТУДЕНТОВ</b>\n\n"
+    for student in sorted_students_by_data:
+        text += f" {student[1]} / {student[0]}\n\n"
     if not text:
         bot.send_message(person.user_id, text="У вас еще нет учеников")
-
     else:
-        bot.send_message(person.user_id, text=text)
-
-    navigation(message, person)
-
-
+        if not requests.select_nav_message_id(person.user_id):
+            msg = bot.send_message(person.user_id, text=text, parse_mode="HTML")
+            bot.pin_chat_message(person.user_id, msg.id)
+            requests.update_nav_message_id_for_tutor(msg.id, person.user_id)
+        else:
+            bot.edit_message_text(text=text, chat_id=person.user_id, message_id=int(requests.select_nav_message_id(person.user_id)), parse_mode="HTML")
 
 class Downloader_task:
     instance = None
@@ -553,6 +556,7 @@ class Downloader_task:
         keyboard.add(button1, button2, button3, button4, button5)
         msg = bot.send_message(self.person.user_id, text=factory_for_menu_dz(self.sendler.dz_number, self.student.user_id), parse_mode="HTML", reply_markup=keyboard, is_deleting=False)
         requests.update_message_id_for_dz(msg.id, self.sendler.dz_number, self.student.user_id)
+        get_list_students(message)
 
 def factory_for_menu_dz(dz_number:int, student_id:int):
     dz_info = requests.select_dz(dz_number, student_id)
@@ -619,7 +623,6 @@ class Sender(ABC):
         back = KeyboardButton(text="Назад")
         keyboard.add(back)
         msg = bot.send_message(self.person.user_id, text="Выбор ученика", reply_markup=keyboard)
-
         bot.register_next_step_handler(msg, self.get_student)
 
     def get_student(self, message):
@@ -819,8 +822,11 @@ def get_answers_by_callback(callback):
 @bot.callback_query_handler(func=lambda callback: bot.check_callback_data(callback, 'dz_result'))
 def get_result_by_callback(callback):
     callback_data = bot.get_callback(int(callback.data))
-    correct_answer = requests.select_cur_answer(callback_data.get_value('dz_id'), callback_data.get_value('student_id'))
-    student_answer = requests.select_student_answer(callback_data.get_value('dz_id'), callback_data.get_value('student_id'))
+    if not requests.select_has_answer_in_dz(callback_data.get_value('dz_number'), callback_data.get_value('student_id')):
+        bot.send_message(chat_id=callback_data.get_value('tutor_id'), text="Ученик пока что не выполнил домашнюю работу")
+        return
+    correct_answer = requests.select_cur_answer(callback_data.get_value('dz_number'), callback_data.get_value('student_id'))
+    student_answer = requests.select_student_answer(callback_data.get_value('dz_number'), callback_data.get_value('student_id'))
     print(student_answer)
     return
     result = sum(i == j for i in correct_answer for j in student_answer)
@@ -828,7 +834,7 @@ def get_result_by_callback(callback):
     for i in range(len(correct_answer)):
         result += f"{i + 1}) {correct_answer[i + 1]} / {student_answer[i]}\n"
     bot.send_message(callback_data.get_value('tutor_id'),
-                     text=f"{Student(callback_data.get_value('student_name'))} выполнил домашнюю работу: dz-{callback_data.get_value('dz_id')}. Результат: {result} из {len(correct_answer)}.\n{result_by_number}")
+                     text=f"{Student(callback_data.get_value('student_name'))} выполнил домашнюю работу: dz-{callback_data.get_value('dz_number')}. Результат: {result} из {len(correct_answer)}.\n{result_by_number}")
 
 @bot.message_handler(func=lambda x: True)
 def prompt_in_case_of_incorrect_input(message):

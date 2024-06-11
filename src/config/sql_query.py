@@ -144,3 +144,22 @@ SELECT_STUDENT_ANSWER = """
 SELECT answer FROM dz
 WHERE id = {0} AND student_id = {1};
 """
+
+SELECT_CREATION_DATA_FOR_DZ = """
+SELECT creation_at FROM dz
+WHERE id = (SELECT id FROM dz
+            WHERE student_id = {0}
+            ORDER BY id DESC
+            LIMIT 1) AND student_id = {0};
+"""
+
+UPDATE_NAV_MESSAGE_ID_FOR_TUTUR = """
+UPDATE tutors
+SET navigation_message_id = {0}
+WHERE tutor_id = {1};
+"""
+
+SELECT_NAV_MESSAGE_ID = """
+SELECT navigation_message_id FROM tutors
+WHERE tutor_id = {0};
+"""
